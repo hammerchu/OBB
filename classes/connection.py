@@ -1,4 +1,5 @@
 #-*-coding:utf-8-*-
+from typing import Tuple, List, Dict
 from urllib import response
 import requests
 import asyncio
@@ -12,10 +13,7 @@ import json, logging
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("asyncio").setLevel(logging.WARNING)
 
-'''
-Class 
-'''
-class ConnectWS():
+class Connect():
     '''
     Functionalities for all the key websocket connection requests with the agileX bots
     Manged by async send and feedback queues
@@ -51,7 +49,6 @@ class ConnectWS():
             logging.error(f'Error - unknown action {action}')
             return
           
-    
     async def send_data_ws(self, message):
         # uri = f"ws://{self.bot_ip}:9090" #填写实际的机器人IP地址:9090
         uri = f"ws://192.168.1.102:9090" #填写实际的机器人IP地址:9090
@@ -71,7 +68,7 @@ class ConnectWS():
                 await websocket.send(bytes(json.dumps(message, ensure_ascii=False).encode("utf-8")))
                 return True
             except:
-                return False
+                return None
         
     async def mock_send_data(self, topic):
         logging.debug(f'{topic} sent')
@@ -160,7 +157,8 @@ class ConnectWS():
         try:
             return await self.send_data_http(url, action, headers, params)
         except Exception as e:
-            return f'Error - {e}'
+            logging.error(e)
+            return None
         
     async def get_dev_ver(self):
         action = 'get'
@@ -170,7 +168,8 @@ class ConnectWS():
         try:
             return await self.send_data_http(url, action, headers, params)
         except Exception as e:
-            return f'Error - {e}'
+            logging.error(e)
+            return None
     
     async def get_maps(self):
         action = 'post'
@@ -182,161 +181,304 @@ class ConnectWS():
         try:
             return await self.send_data_http(url, action, headers, params)
         except Exception as e:
-            return f'Error - {e}'
+            logging.error(e)
+            return None
+
+
+
 
     '''
     websocket functions
     '''
-    async def get_bot_status(self):
-        message = {
-            "op":"subscribe",
-            "topic": "/slam_status",
-            "type": "tools_msgs/slamStatus"
-        }
-        # result = await create_task(self.mock_send_data('get_bot_status'))
-        # return await self.send_data_ws(message)
-        try:
-            return await self.send_data_ws(message)
-            # return await self.mock_send_data(message)
-        except Exception as e:
-            return f'Error - {e}'
-
-    async def get_sensor_status(self):
+    
+    async def get_sensor_status(self) -> Tuple[str, str, str] | None:
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#设备传感器状态
+        '''
         message = {
             "op":"subscribe",
             "topic": "/sensor_status",
             "type": "tools_msgs/SensorStatus"
         }
-
         try:
-            return await self.send_data_ws(message)
-            # return await self.mock_send_data(message)
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp) # type: ignore
+            RTK_status = resp['msg']['RTK_status']
+            lidar_status = resp['msg']['lidar_status']
+            camera_status = resp['msg']['camera_status']
+
+            return (RTK_status, lidar_status, camera_status)
+
         except Exception as e:
-            return f'Error - {e}'
+            logging.error(e)
+            return None
     
-    async def test_function(self, value):
-        message = {
-            "op":"subscribe",
-            "topic": f"/{value}",
-            "type": f"test/test"
-        }
 
-        print(f'test function  - {message}')
-        return 1 # type: ignore
+    async def get_rtk_data(self) -> Tuple[str, str, str] | bool: # type: ignore
+        '''
+        Getting GPS data from RTK device
 
-    async def get_rtk_data(self):
+        file:///Users/hammerchu/Downloads/user_api(1).html#rtk-gps传感器数据
+        '''
         message = {
             "op":"subscribe",
             "topic": "/gnss_status",
             "type": "tools_msgs/GnssStatus"
         }
         try:
-            return await self.send_data_ws(message)
-            # return await self.mock_send_data(message)
-        except Exception as e:
-            return f'Error - {e}'
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp) # type: ignore
+            status = resp['msg']['nav']
+            name = resp['msg']['name']
+            task = resp['msg']['task']
+            return (status, name, task)
 
-    async def up(self, value=1):
-        message = {
-            "op":"publish",
-            "topic": "/cmd_vel",
-            "type": "geometry_msgs/Twist",
-            "msg":{
-                "linear": {
-                    "x": value,
-                    "y": 0,
-                    "z": 0
-                },
-                "angular": {
-                    "x": 0,
-                    "y": 0,
-                    "z": 0
-                }
-            }
-        }
-        print(f'up: {message}')
-        try:
-            return await self.send_data_ws_no_resp(message)
-            # return await self.mock_send_data(message)
         except Exception as e:
-            return f'Error - {e}'
+            logging.error(e)
+            return None
+    
+
+    async def get_nav_status(self) -> bool | None:
+        '''
+        Return True if bot's nav mode is ON
+        '''
+        message = {
+            "op":"subscribe",
+            "topic": "/slam_status",
+            "type": "tools_msgs/slamStatus"
+        }
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp) # type: ignore
+            nav_status = resp['msg']['nav']['state']
+            return nav_status
+            
+        except Exception as e:
+            logging.error(e)
+            return None
         
-    
-    async def down(self, value=1):
-        message = {
-            "op":"publish",
-            "topic": "/cmd_vel",
-            "type": "geometry_msgs/Twist",
-            "msg":{
-                "linear": {
-                    "x": -1 * value,
-                    "y": 0,
-                    "z": 0
-                },
-                "angular": {
-                    "x": 0,
-                    "y": 0,
-                    "z": 0
-                }
-            }
-        }
-        print(f'down: {message}')
-        try:
-            return await self.send_data_ws_no_resp(message)
-            # return await self.mock_send_data(message)
-        except Exception as e:
-            return f'Error - {e}'
 
-    async def left(self, value=1):
+    async def start_nav(self) -> bool | None: # type: ignore
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#启动关闭导航
+        '''
+        message = {
+            "op": "call_service",
+            "service": "/input/op",
+            "type":"tools_msgs/input",
+            "args": {
+                "file_name": "",
+                "op_type":"start",
+                "id_type":"follow_line"
+            }
+        }
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            is_success = resp['value']['success'] 
+            
+            return is_success
+
+        except Exception as e:
+            logging.error(e)
+            return None
+
+
+    async def get_navi_status(self) -> Tuple[str, str, str] | None: # type: ignore
+        '''
+        Getting navigation status\n
+        status -> 
+        0 : 等待新任务
+        1 : 正在执行任务
+        2 : 取消任务
+        3 : 任务完成
+        4 : 任务中断
+        5 : 任务暂停
+        6 : 定位丢失
+        7 : 异常状态,一般最后一个点无法到达会反馈此状态
+        8 : 任务异常暂停，一般中间某个点无法到达会反馈此状态
+        9 : 机器人充电会反馈此状态，此时任何对任务的操作都要失效\n 
+        map_name -> 当前导航所用的地图名称\n 
+        text -> 提示消息\n
+        file:///Users/hammerchu/Downloads/user_api(1).html#导航系统状态
+        '''
+        message = {   
+            "op": "subscribe",
+            "topic": "/run_management/global_status",
+            "type":"support_ros/GlobalStatus" 
+        }
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            status = resp['msg']['status'] # e.g. 1 : 正在执行任务
+            map_name = resp['msg']['map_name']
+            text = resp['msg']['text']
+            return (status, map_name, text)
+
+        except Exception as e:
+            logging.error(e)
+            return None
+    
+
+    async def get_navi_path(self) -> List[Dict] | bool: # type: ignore
+        '''
+        Getting navigation path
+
+        file:///Users/hammerchu/Downloads/user_api(1).html#获取导航规划路径
+        '''
+        message = {   
+            "op": "subscribe",
+            "topic": "/run_management/visual_path",
+            "type":"nav_msgs/Path" 
+        }
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            path = resp['msg']['poses']
+
+            return path
+
+        except Exception as e:
+            logging.error(e)
+            return None
+
+
+    async def get_nav_progress(self) -> float | bool: # type: ignore
+        '''
+        Getting navigation status
+
+        file:///Users/hammerchu/Downloads/user_api(1).html#当前进行中任务进度
+        '''
+        message = {
+            "op": "subscribe",
+            "topic": "/run_management/task_progress",
+            "type":"std_msgs/Float64" 
+        }
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            progress = resp['msg']['data']
+            
+            return progress
+
+        except Exception as e:
+            logging.error(e)
+            return None
+
+
+    async def get_nav_localization(self) -> bool | None: # type: ignore
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#导航定位状态
+        '''
+        message = {   
+            "op": "subscribe",
+            "topic": "/localization_lost",
+            "type":"std_msgs/Bool" 
+        }
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            is_get_lost = resp['msg']['data'] # true-定位丢失,false-定位准确
+            
+            return is_get_lost
+
+        except Exception as e:
+            logging.error(e)
+            return None
+
+
+    async def pause_restart_nav(self, is_pause=True) -> bool | None: # type: ignore
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#暂停恢复当前导航任务
+        '''
+        if is_pause:
+            key =  True 
+        else:
+            key =  False
+
+        message = {
+            "op": "call_service",
+            "service": "/run_management/pause",
+            "type": "actionlib_msgs/GoalID",
+            "args":{     
+                "pause": key, #true:暂停 ,false:恢复
+                "reason": 0
+            }
+        }
+
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            is_success = resp['value']['success'] 
+            
+            return is_success
+
+        except Exception as e:
+            logging.error(e)
+            return None
+    
+    
+    async def set_obstacle_avoid_mode(self, walk_around:bool=True) -> bool | None: # type: ignore
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#设置避障模式
+        '''
+        if walk_around:
+            key =  True 
+        else:
+            key =  False
+
+        message = {
+            "op": "call_service",
+            "service": "/run_management/switch_obstacle_avoid_model",
+            "type": "std_srvs/SetBool",
+            "args":{     
+                "data": key #true:避障 ,false:停障
+            }
+        }
+
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            is_success = resp['value']['success'] 
+            
+            return is_success
+
+        except Exception as e:
+            logging.error(e)
+            return None
+
+
+
+    async def cmd_vel(self, linear_x:float=0.0, angular_x:float=0.0) -> bool | None:
+        '''
+        Drive the bot;\n
+        linear_x > 0 -> moving forward\n
+        angular_x > 0 -> turn left
+        '''
         message = {
             "op":"publish",
             "topic": "/cmd_vel",
             "type": "geometry_msgs/Twist",
             "msg":{
                 "linear": {
-                    "x": 1 * value,
+                    "x": linear_x,
                     "y": 0,
                     "z": 0
                 },
                 "angular": {
-                    "x": 0,
-                    "y": 0,
-                    "z": 1 * value,
-                }
-            }
-        }
-        print(f'left: {message}')
-        try:
-            return await self.send_data_ws_no_resp(message)
-            # return await self.mock_send_data(message)
-        except Exception as e:
-            return f'Error - {e}'
-    
-    async def right(self, value=1):
-        message = {
-            "op":"publish",
-            "topic": "/cmd_vel",
-            "type": "geometry_msgs/Twist",
-            "msg":{
-                "linear": {
-                    "x": 1 * value,
+                    "x": angular_x,
                     "y": 0,
                     "z": 0
-                },
-                "angular": {
-                    "x": 0,
-                    "y": 0,
-                    "z": -1 * value,
                 }
             }
         }
-        print(f'right: {message}')
         try:
-            return await self.send_data_ws_no_resp(message)
-            # return await self.mock_send_data(message)
+            resp = await self.send_data_ws_no_resp(message)
+            return True
         except Exception as e:
-            return f'Error - {e}'
-    
+            return None
+
+
     async def stop(self):
         message = {
             "op":"publish",
@@ -380,17 +522,7 @@ class ConnectWS():
         except Exception as e:
             return f'Error - {e}'
     
-    async def get_rtk_data(self):
-        message = {
-            "op":"subscribe",
-            "topic": "/gnss_status",
-            "type": "tools_msgs/GnssStatus"
-        }
-        try:
-            return await self.send_data_ws(message)
-            # return await self.mock_send_data(message)
-        except Exception as e:
-            return f'Error - {e}'
+
 
 
 
@@ -427,7 +559,7 @@ if __name__ == '__main__':
 
     print('Running main')
 
-    app = ConnectWS('192.168.1.1')
+    app = Connect('192.168.1.1')
 
     app.lighting()
 
