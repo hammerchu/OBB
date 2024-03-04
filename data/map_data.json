@@ -1,0 +1,95 @@
+{
+    "map_zone_cmd" :[
+        {
+            "name" : "supervise",
+            "value" : [0, 50, 255, 255],
+            "cmd" : "supervise",
+            "comment" : "Stop and wait for HUBS supervision"
+        },
+        {
+            "name" : "cross_road",
+            "value" : [100, 0, 255, 255],
+            "cmd" : "cross_road",
+            "comment" : "Stop and wait for HUBS supervision and orient towards specific direction"
+        },
+        {
+            "name" : "tunnel",
+            "value" : [150, 50, 0, 255],
+            "cmd" : "tunnel",
+            "comment" : "turn on headlight in tunnel"
+        },
+        {
+            "name" : "wait_for_supervise",
+            "value" : [0, 58, 255, 255],
+            "cmd" : "wait_for_supervise",
+            "comment" : ""
+        }
+    ],
+    "map_connection_data" : [
+        {
+            "map_name" : "T001",
+            "connect_to" : [
+                {
+                    "map_name": "T002",
+                    "connect_at_map_pos" : [123, 1234]
+                },
+                {
+                    "map_name": "T003",
+                    "connect_at_map_pos" : [345, 3456]
+                }
+            ]
+        },
+        {
+            "map_name" : "T002",
+            "connect_to" : [
+                {
+                    "map_name": "T001",
+                    "connect_at_map_pos" : [23, 234]
+                },
+                {
+                    "map_name": "T004",
+                    "connect_at_map_pos" : [345, 3456]
+                }
+            ]
+        },
+        {
+            "map_name" : "T003",
+            "connect_to" : [
+                {
+                    "map_name": "T001",
+                    "connect_at_map_pos" : [23, 234]
+                },
+                {
+                    "map_name": "T005",
+                    "connect_at_map_pos" : [223, 2234]
+                }
+            ]
+        },
+        {
+            "map_name" : "T004",
+            "connect_to" : [
+                {
+                    "map_name": "T002",
+                    "connect_at_map_pos" : [23, 234]
+                },
+                {
+                    "map_name": "T005",
+                    "connect_at_map_pos" : [234, 2345]
+                }
+            ]
+        },
+        {
+            "map_name" : "T005",
+            "connect_to" : [
+                {
+                    "map_name": "T003",
+                    "connect_at_map_pos" : [123, 1234]
+                },
+                {
+                    "map_name": "T004",
+                    "connect_at_map_pos" : [23, 234]
+                }
+            ]
+        }
+    ]
+}
