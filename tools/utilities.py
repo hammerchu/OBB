@@ -27,7 +27,7 @@ def convert_map_to_png_pos(map_name:str, position:Tuple[int, int], gridWidth:int
         yaml_path = os.path.join(profile.ROOT_PATH, f'data/maps/{map_name}/{map_name}.yaml')
         with open(yaml_path, 'r') as file :
             map_yaml = yaml.safe_load(file)
-        print(f' map_yaml : { map_yaml} ')
+        # print(f' map_yaml : { map_yaml} ')
 
         # If map image size is not provided, found it out
         if gridWidth == 0 or gridHeight == 0:
@@ -44,6 +44,36 @@ def convert_map_to_png_pos(map_name:str, position:Tuple[int, int], gridWidth:int
         png_y = gridHeight - (pose_y - originY) / resolution
 
         return png_x, png_y
+
+    except Exception as e:
+        logging.error(e)
+
+def convert_png_to_map_pos(map_name:str, position:Tuple[int, int], gridWidth:int=0, gridHeight:int=0):
+    '''
+    convert map coord to map image position
+    '''
+    # read data from map yaml
+    try:
+        yaml_path = os.path.join(profile.ROOT_PATH, f'data/maps/{map_name}/{map_name}.yaml')
+        with open(yaml_path, 'r') as file :
+            map_yaml = yaml.safe_load(file)
+        # print(f' map_yaml : { map_yaml} ')
+
+        # If map image size is not provided, found it out
+        if gridWidth == 0 or gridHeight == 0:
+            map_img_path = os.path.join(profile.ROOT_PATH, f'data/maps/{map_name}/{map_name}.png')
+            gridWidth, gridHeight = Image.open(map_img_path).size
+
+        png_x = position[0]
+        png_y = position[1]
+        originX = map_yaml['origin'][0]
+        originY = map_yaml['origin'][1]
+        resolution = map_yaml['resolution']
+
+        pose_x = png_x * resolution + originX
+        pose_y = (gridHeight - png_y) * resolution + originY
+
+        return pose_x, pose_y
 
     except Exception as e:
         logging.error(e)
@@ -86,15 +116,23 @@ def get_scaled_control_map_color(map_name:str, position:Tuple[int, int]) -> Unio
 
     
 if __name__ == '__main__':
-    # resp = convert_map_to_png_pos('T001-02', (0,0))
+    png_input = (2333,449)
+    resp = convert_png_to_map_pos('Elements04', png_input)
+    if resp:
+        map_x, map_y = resp
+        print(f"\npng pos {png_input} convert to {map_x}, {map_y}\n")
+
+    map_input = (0, 0)
+    resp = convert_map_to_png_pos('Elements04', map_input)
+    if resp:
+        png_x, png_y = resp
+        print(f"\nMap pos {map_input} convert to {png_x}, {png_y}\n")
+
+    # resp = get_control_map_color('T001-02', (0,0))
     # if resp:
-    #     png_x, png_y = resp
-    #     print(png_x, png_y)
-    resp = get_control_map_color('T001-02', (0,0))
-    if resp:
-        print(resp)
+    #     print(resp)
     
-    resp = get_scaled_control_map_color('T001-02', (0,0))
-    if resp:
-        print(resp)
+    # resp = get_scaled_control_map_color('T001-02', (0,0))
+    # if resp:
+    #     print(resp)
     

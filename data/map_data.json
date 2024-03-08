@@ -2,27 +2,21 @@
     "map_zone_cmd" :[
         {
             "name" : "supervise",
-            "value" : [0, 50, 255, 255],
+            "color" : [0, 50, 255, 255],
             "cmd" : "supervise",
             "comment" : "Stop and wait for HUBS supervision"
         },
         {
             "name" : "cross_road",
-            "value" : [100, 0, 255, 255],
+            "color" : [100, 0, 255, 255],
             "cmd" : "cross_road",
             "comment" : "Stop and wait for HUBS supervision and orient towards specific direction"
         },
         {
             "name" : "tunnel",
-            "value" : [150, 50, 0, 255],
+            "color" : [150, 50, 0, 255],
             "cmd" : "tunnel",
-            "comment" : "turn on headlight in tunnel"
-        },
-        {
-            "name" : "wait_for_supervise",
-            "value" : [0, 58, 255, 255],
-            "cmd" : "wait_for_supervise",
-            "comment" : ""
+            "comment" : "turn on headlight, expect latency in tunnel"
         }
     ],
     "map_connection_data" : [

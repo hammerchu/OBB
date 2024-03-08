@@ -1,9 +1,8 @@
-
+from bot.tools import path
 
 class Plan():
     '''
     Create plans and connecting mini maps
-
 
     '''
     def __init__(self):
@@ -18,24 +17,11 @@ class Plan():
         '''
         Given the global start and dest, find out a list of goals and maps as use them as input
         for the navigation stack.
-
-        e.g. 
-        [
-            {
-            "index" : 0
-            "map_name" : "KW182",
-            "goal_lng" : 23.4553546
-            "goal_lat" : 234.123244
-            },
-            {
-            "index" : 1
-            "map_name" : "KW123",
-            "goal_lng" : 23.3445352
-            "goal_lat" : 234.123236
-            },
-        ]
         '''
         pass
 
+
+if __name__ == '__main__':
+    print(path.map_connection_data)
         
 

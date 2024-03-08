@@ -1,5 +1,5 @@
 #-*-coding:utf-8-*-
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Union
 from urllib import response
 import requests
 import asyncio
@@ -30,15 +30,20 @@ class Connect():
 
         self.version = '0.0.12'
 
+        self.timeout_limit = 3
+
+        self.secret = self.login()
+        logging.debug(f' self.secret : { self.secret} ')
+
         # asyncio.run(self.run()) // error -> got Future <Future pending> attached to a different loop
         # loop = asyncio.get_event_loop()
         # loop.run_until_complete(self.run())
 
     def get_ver(self):
-        print(self.version)
+        logging.info(self.version)
 
-    async def send_data_http(self, postfix, action, header, params):
-        uri = f"ws://192.168.1.102:8880/"
+    def send_data_http(self, postfix, action, header, params):
+        uri = f"http://192.168.1.102:8880/"
         if action == 'get':
             response = requests.get(uri+postfix, headers=header, params=params)
             return response.json
@@ -53,14 +58,15 @@ class Connect():
         # uri = f"ws://{self.bot_ip}:9090" #填写实际的机器人IP地址:9090
         uri = f"ws://192.168.1.102:9090" #填写实际的机器人IP地址:9090
         async with websockets.connect(uri) as websocket:
-        
-            await websocket.send(bytes(json.dumps(message, ensure_ascii=False).encode("utf-8")))
-            # response = await websocket.recv()
-            # yield from asyncio.wait_for(websocket.recv(), timeout=10)
-            response = asyncio.wait_for(websocket.recv(), timeout=3)
-            return response
+            try:
+                await websocket.send(bytes(json.dumps(message, ensure_ascii=False).encode("utf-8")))
+                resp = asyncio.wait_for(websocket.recv(), timeout=self.timeout_limit)
+                if resp:
+                    return resp
+            except:
+                return None
     
-    async def send_data_ws_no_resp(self, message):
+    async def send_data_ws_no_resp(self, message) -> Union[bool, None]:
         # uri = f"ws://{self.bot_ip}:9090" #填写实际的机器人IP地址:9090
         uri = f"ws://192.168.1.102:9090" #填写实际的机器人IP地址:9090
         async with websockets.connect(uri) as websocket:
@@ -146,7 +152,7 @@ class Connect():
     '''
     API functions
     '''
-    async def login(self):
+    def login(self):
         action = 'post'
         url = f"http://{self.bot_ip}:8880/apiUrl/user/passport/login"
         headers = ""
@@ -155,7 +161,7 @@ class Connect():
             "password": "NTdhMTE5NGNiMDczY2U4YjNiYjM2NWU0YjgwNWE5YWU="
         }
         try:
-            return await self.send_data_http(url, action, headers, params)
+            return self.send_data_http(url, action, headers, params)
         except Exception as e:
             logging.error(e)
             return None
@@ -191,7 +197,7 @@ class Connect():
     websocket functions
     '''
     
-    async def get_sensor_status(self) -> Tuple[str, str, str] | None:
+    async def get_sensor_status(self) -> Union[Tuple[str, str, str], None]:
         '''
         file:///Users/hammerchu/Downloads/user_api(1).html#设备传感器状态
         '''
@@ -214,7 +220,7 @@ class Connect():
             return None
     
 
-    async def get_rtk_data(self) -> Tuple[str, str, str] | bool: # type: ignore
+    async def get_rtk_data(self) -> Union[Tuple[str, str, str], bool]: # type: ignore
         '''
         Getting GPS data from RTK device
 
@@ -238,7 +244,7 @@ class Connect():
             return None
     
 
-    async def get_nav_status(self) -> bool | None:
+    async def is_nav_on(self) -> Union[bool, None]:
         '''
         Return True if bot's nav mode is ON
         '''
@@ -258,7 +264,7 @@ class Connect():
             return None
         
 
-    async def start_nav(self) -> bool | None: # type: ignore
+    async def start_nav(self) -> Union[bool, None]: # type: ignore
         '''
         file:///Users/hammerchu/Downloads/user_api(1).html#启动关闭导航
         '''
@@ -284,7 +290,7 @@ class Connect():
             return None
 
 
-    async def get_navi_status(self) -> Tuple[str, str, str] | None: # type: ignore
+    async def get_navi_code(self) -> Union[Tuple[str, str, str], None]: # type: ignore
         '''
         Getting navigation status\n
         status -> 
@@ -320,7 +326,7 @@ class Connect():
             return None
     
 
-    async def get_navi_path(self) -> List[Dict] | bool: # type: ignore
+    async def get_navi_path(self) -> Union[List[Dict], None]: # type: ignore
         '''
         Getting navigation path
 
@@ -343,7 +349,7 @@ class Connect():
             return None
 
 
-    async def get_nav_progress(self) -> float | bool: # type: ignore
+    async def get_nav_progress(self) -> Union[float, None]: # type: ignore
         '''
         Getting navigation status
 
@@ -366,7 +372,7 @@ class Connect():
             return None
 
 
-    async def get_nav_localization(self) -> bool | None: # type: ignore
+    async def get_nav_localization(self) -> Union[bool, None]: # type: ignore
         '''
         file:///Users/hammerchu/Downloads/user_api(1).html#导航定位状态
         '''
@@ -387,7 +393,37 @@ class Connect():
             return None
 
 
-    async def pause_restart_nav(self, is_pause=True) -> bool | None: # type: ignore
+    async def get_bot_position(self) -> Union[Tuple[int, int, int, int, int, int, int], None]: 
+        '''
+        topic = /odom 可用于获取机器人导航时，相对于地图原点的位置\n
+        topic = /odom_raw 获取机器人相对初始点(开机启动点)的里程与位置信息\n
+
+        file:///Users/hammerchu/Downloads/user_api(1).html#机器人位置
+        '''
+        message = {   
+            "op": "subscribe",
+            "topic": "/odom",
+            "type":"nav_msgs/Odometry" 
+        }
+        try:
+            resp = await self.send_data_ws(message)
+            resp = json.loads(resp)
+            pos_x = resp['msg']['pose']['pose']['position']['x']
+            pos_y = resp['msg']['pose']['pose']['position']['y']
+            pos_z = resp['msg']['pose']['pose']['position']['z']
+            ori_x = resp['msg']['pose']['pose']['orientation']['x']
+            ori_y = resp['msg']['pose']['pose']['orientation']['y']
+            ori_z = resp['msg']['pose']['pose']['orientation']['z'] 
+            ori_w = resp['msg']['pose']['pose']['orientation']['w'] 
+            
+            return pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, ori_w
+
+        except Exception as e:
+            logging.error(e)
+            return None
+
+
+    async def pause_restart_nav(self, is_pause=True) -> Union[bool, None]:
         '''
         file:///Users/hammerchu/Downloads/user_api(1).html#暂停恢复当前导航任务
         '''
@@ -417,8 +453,62 @@ class Connect():
             logging.error(e)
             return None
     
-    
-    async def set_obstacle_avoid_mode(self, walk_around:bool=True) -> bool | None: # type: ignore
+    async def set_task_on_map(self, map_name, position=(0,0,0), speed=2 ):
+        '''
+        '''
+
+        task_name = ""
+
+        message = {
+            "taskName": "",
+            "gridItemIdx": 0,
+            "points": [{
+                "position": {
+                    "y": 0,
+                    "x":  0,
+                    "theta":  0,
+                },
+                "pointType": "",
+                "actions": [{
+                    "actionContent": "",
+                    "actionType": "",
+                    "actionOrder": 0,
+                    "actionName": "",
+                }],
+                "pointName": "",
+                "index": 0,
+                "isNew": False,
+                "cpx": 0,
+                "cpy": 0,
+            }],
+            "mode": "",
+            "evadible": 1,
+            "mapName": map_name,
+            "speed": speed,
+            "editedName": "",
+            "remark": "",
+            "personName": "OBB"
+        }
+
+        try:
+
+            headers = {
+            'Authorization': 'MTY3NTg0Njk2NC4xMjk1NjgzJDdmOGEzOTIzNTJmZTAxYzFkOGQ4ZDc1ZTdmMTYzMjBkN2FjNGE0NjM='
+            }
+   
+            resp = await self.send_data_http("apiUrl/set_task", "post", header=headers, params=message)
+            resp = json.loads(resp)
+            
+            if resp['code']: # 0即表示成功,-1表示失败
+                return True
+            else:
+                return False            
+
+        except Exception as e:
+            logging.error(e)
+            return None
+
+    async def set_obstacle_avoid_mode(self, walk_around:bool=True) -> Union[bool, None]: # type: ignore
         '''
         file:///Users/hammerchu/Downloads/user_api(1).html#设置避障模式
         '''
@@ -449,7 +539,7 @@ class Connect():
 
 
 
-    async def cmd_vel(self, linear_x:float=0.0, angular_x:float=0.0) -> bool | None:
+    async def cmd_vel(self, linear_x:float=0.0, angular_x:float=0.0) -> Union[bool, None]:
         '''
         Drive the bot;\n
         linear_x > 0 -> moving forward\n
@@ -561,7 +651,7 @@ if __name__ == '__main__':
 
     app = Connect('192.168.1.1')
 
-    app.lighting()
+    # app.lighting()
 
 
 

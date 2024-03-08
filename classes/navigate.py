@@ -1,9 +1,10 @@
 #-*-coding:utf-8-*-
 from threading import Thread
 from connection import Connect
-from plan import Plan
+from bot.classes.plan import Plan
+from bot.tools.utilities import get_scaled_control_map_color
 from typing import Tuple, List, Dict # for python 3.8
-from tools import profile, utilities
+from bot.tools import profile, utilities
 import logging
 import asyncio
 import time
@@ -30,7 +31,7 @@ class Navigate():
         self.is_navigating = False
         self.current_map = None
         self.mini_goal_index = 0
-        self.POSITION_CHECK_FREQ = 60 # check status 10 times one min
+        self.POSITION_CHECK_FREQ = 60 
 
         self.px = -1
         self.py = -1
@@ -40,7 +41,7 @@ class Navigate():
         self.oz = -1
         self.oz = -1
 
-        self.control_map_color = (-1, -1, -1)
+        self.control_map_color = (-1, -1, -1, -1)
 
         self.gps_status = None
         self.gps_lat = -1
@@ -51,7 +52,7 @@ class Navigate():
         '''
         Check and update nav info, run at startup
         '''
-        if self.connection.is_nav_on():
+        if await self.connection.is_nav_on():
             self.nav_mode = True # bot nav mode is ON
         else:
             # start nav mode....
@@ -119,12 +120,23 @@ class Navigate():
         else:
             logging.info(f'{self.id} is not in navigation mode')
 
-    def update_control_map_color(self, map_name:str, map_position: Tuple[int, int]):
+    def update_control_map_color(self):
         '''
         Takes an image_position and a map_name and return a rgb color for that image_position
         '''
-        self.control_map_color = (-1, -1, -1)
-    
+        if self.current_map:
+            resp = get_scaled_control_map_color(self.current_map, (self.px, self.py))
+            if resp:
+                self.control_map_color = resp
+            else:
+                pass
+        else:
+            pass
+
+
+    def create_task():
+        '''
+        '''
 
 
     '''
@@ -137,11 +149,16 @@ class Navigate():
          - current map\n
          - current position on map\n
          - Nav status code
+         - color code from control map
         '''
         while True:
+            logging.info('Running Navigate::track_nav')
             if self.is_navigating:
                 await self.update_position_in_current_map()
                 await self.update_nav_code_and_current_map()
+                self.update_control_map_color()
+            else:
+                pass
                
             time.sleep(60/self.POSITION_CHECK_FREQ)
 

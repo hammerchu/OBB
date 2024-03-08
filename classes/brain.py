@@ -4,6 +4,7 @@ import logging
 from threading import Thread
 import time
 import asyncio
+import json
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
 from flask_socketio import SocketIO
@@ -11,6 +12,9 @@ from flask_socketio import SocketIO
 from bot.classes.navigate import Navigate
 from bot.classes.plan import Plan
 from bot.classes.call import Call
+from bot.tools import zone_cmd
+
+from bot.tools import profile
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,7 +49,6 @@ logging.basicConfig(level=logging.INFO)
 class RobotControlCenter:
     def __init__(self):
         self.app = Flask(__name__, static_url_path="", static_folder="static")
-        self.app.config.from_object('config')
         self.app.config['SECRET_KEY'] = 'vnkdjnfjknfl1232#'
         CORS(self.app)
 
@@ -57,32 +60,60 @@ class RobotControlCenter:
     def setup(self):
         self.nav = asyncio.run(Navigate._init_())  # Nav instance
         self.plan = Plan()  # Plan instance
-        self.call = Call('M', 60, 0)  # Call and Streaming instance
-        self.call.run('https://onbotbot.daily.co/_test')
+        # self.call = Call('M', 60, 0)  # Call and Streaming instance
+        # self.call.run('https://onbotbot.daily.co/_test')
 
-    def track_nav(self):
+    def action_thread(self):
         '''
-        Running in a separate thread to check if bbot stuck
+        Running in a separate thread 
+        
+        - Check if bot stuck
+        - Communicate with HUBS
+        - Check and run zone cmd
         '''
         is_asking_help = False
         while True:
 
-            if self.nav and self.call and self.plan and self.nav.is_navigating:
+            # if self.nav and self.call and self.plan and self.nav.is_navigating:
+            if self.nav and self.plan and self.nav.is_navigating:
                 logging.debug('Nav code: ', self.nav.nav_code)
                 if not is_asking_help and self.nav.nav_code and self.nav.nav_code >= 6:
                     '''ask for help from HUBS'''
                     logging.info('Stuck: ', self.nav.nav_code)
-                    self.call.stuck_message(self.nav.nav_code)
+                    # self.call.stuck_message(self.nav.nav_code)
                     is_asking_help = True
                 elif is_asking_help and self.nav.nav_code and self.nav.nav_code < 6:
                     '''recovered from stuck'''
                     logging.info('Recovered from stuck: ', self.nav.nav_code)
-                    self.call.recovered_message(self.nav.nav_code)
+                    # self.call.recovered_message(self.nav.nav_code)
                     is_asking_help = False
             else:
                 pass
+            
+            self.run_location_based_cmd() 
 
             time.sleep(60 / self.STATUS_CHECK_FREQ)
+
+    
+    def run_location_based_cmd(self):
+        '''
+        check if the current control map color is matching a zone
+        If yes, run the preset zone cmd
+        '''
+        map_zone_cmd = json.load(open(profile.MAP_DATA_JSON, 'r'))['map_zone_cmd']
+        color_list = list(map(lambda x: x['color'], map_zone_cmd))
+        cmd_list = list(map(lambda x: x['cmd'], map_zone_cmd))
+
+        for index, color in enumerate(color_list):
+            if self.nav:
+                logging.info(f'control map color: {self.nav.control_map_color} ')
+                if self.nav.control_map_color == color:
+                    eval(f"zone_cmd.{cmd_list[index]}")
+
+
+    def index(self):
+        return 'Hello OBB'
+    
 
     def travel_to(self):
         '''
@@ -92,16 +123,20 @@ class RobotControlCenter:
         logging.info(f'Start travel to dest_station_id : {dest_station_id} ')
         return ""
 
+
     def bringup(self):
         '''
         Do all the bringup task here
         '''
-        Thread(target=self.track_nav).start()
+        Thread(target=self.action_thread).start()
+
 
     def run(self):
         logging.info('\n\n -----BRAIN-----\n\n')
         self.setup()
         self.bringup()
+        # self.run_location_based_cmd()
+        self.app.add_url_rule('/', 'index', self.index, methods=['GET'])
         self.app.add_url_rule('/goto', 'travel_to', self.travel_to, methods=['POST'])
         self.app.run(host='0.0.0.0', port=8000, debug=True)
 
@@ -111,7 +146,6 @@ if __name__ == '__main__':
     robot_control_center.run()
 
 
-git
 # app = Flask(__name__, static_url_path="", static_folder="static")
 # app.config.from_object('config')
 # app.config['SECRET_KEY'] = 'vnkdjnfjknfl1232#'
