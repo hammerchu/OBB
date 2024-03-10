@@ -19,7 +19,7 @@
             "comment" : "turn on headlight, expect latency in tunnel"
         }
     ],
-    "map_connection_data" : [
+    "map_data" : [
         {
             "map_name" : "T001",
             "connect_to" : [
@@ -31,7 +31,21 @@
                     "map_name": "T003",
                     "connect_at_map_pos" : [345, 3456]
                 }
-            ]
+            ],
+            "stations" :[
+                {
+                    "station_name" : "S101",
+                    "position_on_map" : [234, 1234]
+                },
+                {
+                    "station_name" : "S102",
+                    "position_on_map" : [534, 1534]
+                },
+                {
+                    "station_name" : "S103",
+                    "position_on_map" : [734, 1734]
+                }
+            ] 
         },
         {
             "map_name" : "T002",
@@ -44,7 +58,21 @@
                     "map_name": "T004",
                     "connect_at_map_pos" : [345, 3456]
                 }
-            ]
+            ],
+            "stations" :[
+                {
+                    "station_name" : "S201",
+                    "position_on_map" : [234, 1234]
+                },
+                {
+                    "station_name" : "S202",
+                    "position_on_map" : [534, 1534]
+                },
+                {
+                    "station_name" : "S203",
+                    "position_on_map" : [734, 1734]
+                }
+            ] 
         },
         {
             "map_name" : "T003",
@@ -57,7 +85,21 @@
                     "map_name": "T005",
                     "connect_at_map_pos" : [223, 2234]
                 }
-            ]
+            ],
+            "stations" :[
+                {
+                    "station_name" : "S301",
+                    "position_on_map" : [234, 1234]
+                },
+                {
+                    "station_name" : "S302",
+                    "position_on_map" : [534, 1534]
+                },
+                {
+                    "station_name" : "S303",
+                    "position_on_map" : [734, 1734]
+                }
+            ] 
         },
         {
             "map_name" : "T004",
@@ -70,7 +112,21 @@
                     "map_name": "T005",
                     "connect_at_map_pos" : [234, 2345]
                 }
-            ]
+            ],
+            "stations" :[
+                {
+                    "station_name" : "S401",
+                    "position_on_map" : [234, 1234]
+                },
+                {
+                    "station_name" : "S402",
+                    "position_on_map" : [534, 1534]
+                },
+                {
+                    "station_name" : "S403",
+                    "position_on_map" : [734, 1734]
+                }
+            ] 
         },
         {
             "map_name" : "T005",
@@ -83,7 +139,24 @@
                     "map_name": "T004",
                     "connect_at_map_pos" : [23, 234]
                 }
-            ]
+            ],
+            "stations" :[
+                {
+                    "station_name" : "S501",
+                    "position_on_map" : [234, 1234]
+                },
+                {
+                    "station_name" : "S502",
+                    "position_on_map" : [534, 1534]
+                },
+                {
+                    "station_name" : "S503",
+                    "position_on_map" : [734, 1734]
+                }
+            ] 
         }
+    ],
+    "map_station_data" : [
+
     ]
 }
