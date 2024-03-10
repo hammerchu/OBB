@@ -1,13 +1,15 @@
 #-*-coding:utf-8-*-
 from typing import Tuple, List, Dict, Union
 from urllib import response
+import time
+from datetime import datetime
+import logging
+import json
+import random
 import requests
 import asyncio
 import websockets
 from asyncio import create_task, gather, sleep, run
-import random
-import time
-import json, logging
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -22,54 +24,81 @@ class Connect():
 
     def __init__(self, bot_ip):
         self.bot_ip = bot_ip
+        http_port = "8880"
+        ws_port = "9090"
+        self.http_url = f"http://{self.bot_ip}:{http_port}"
+        self.ws_url = f"http://{self.bot_ip}:{ws_port}"
         self.queue = asyncio.Queue()
 
         self.finish = False
 
         self.auth_token = ''
 
-        self.version = '0.0.12'
-
         self.timeout_limit = 3
 
-        self.secret = self.login()
-        logging.debug(f' self.secret : { self.secret} ')
+        self.token = self.login()
+        logging.debug(f' Token : { self.token} ')
+        logging.info(f' Dev ver: {self.get_dev_ver()}\n\n')
+
+        '''Test'''
+        task_points = [(0,0,0), (3, 2, 180) , (10, 2, 0)]
+        map_name='Elements04'
+        task_name='Element04_test_02'
+        # logging.info(f' Map list: {self.get_maps_list()}')
+        print('\n')
+        self.set_list_task(map_name, task_name, task_points)
+        print('\n')
+        logging.info(f' Map list: {self.get_maps_list()}')
+
 
         # asyncio.run(self.run()) // error -> got Future <Future pending> attached to a different loop
         # loop = asyncio.get_event_loop()
         # loop.run_until_complete(self.run())
 
-    def get_ver(self):
-        logging.info(self.version)
 
-    def send_data_http(self, postfix, action, header, params):
-        uri = f"http://192.168.1.102:8880/"
+    def send_data_http(self, url, action, header, data) -> Union[Dict, None]:
         if action == 'get':
-            response = requests.get(uri+postfix, headers=header, params=params)
-            return response.json
+            resp = requests.get(url, headers=header, data=data)
+            logging.debug(f'HTTP GET RETURN MSG: {resp.text}\n')
+            if resp:
+                return resp.json()
+            else:
+                logging.error(f'Failed to GET from {url}')
+                return None
         elif action == 'post':
-            response = requests.post(uri+postfix, headers=header, params=params)
-            return response.json
+            # headers = {"Content-type": "application/json"}
+            resp = requests.post(url, headers=header, data=json.dumps(data))
+            resp.encoding = 'UTF-8' # or resp.apparent_encoding
+            logging.debug(f'\nHTTP POST RETURN MSG v1.1: {resp.content}\n')
+            if resp:
+                return resp.json()
+            else:
+                logging.error(f'Failed to POST to {url}')
+                return None
         else:
             logging.error(f'Error - unknown action {action}')
-            return
+            return None
           
+
     async def send_data_ws(self, message):
         # uri = f"ws://{self.bot_ip}:9090" #填写实际的机器人IP地址:9090
-        uri = f"ws://192.168.1.102:9090" #填写实际的机器人IP地址:9090
-        async with websockets.connect(uri) as websocket:
+        # uri = f"ws://192.168.1.102:9090" #填写实际的机器人IP地址:9090
+        async with websockets.connect(self.ws_url) as websocket:
             try:
                 await websocket.send(bytes(json.dumps(message, ensure_ascii=False).encode("utf-8")))
                 resp = asyncio.wait_for(websocket.recv(), timeout=self.timeout_limit)
                 if resp:
-                    return resp
+                    return json.loads(str(resp))
+                else:
+                    return None
             except:
                 return None
     
+
     async def send_data_ws_no_resp(self, message) -> Union[bool, None]:
         # uri = f"ws://{self.bot_ip}:9090" #填写实际的机器人IP地址:9090
-        uri = f"ws://192.168.1.102:9090" #填写实际的机器人IP地址:9090
-        async with websockets.connect(uri) as websocket:
+        # uri = f"ws://192.168.1.102:9090" #填写实际的机器人IP地址:9090
+        async with websockets.connect(self.ws_url) as websocket:
             try:
                 await websocket.send(bytes(json.dumps(message, ensure_ascii=False).encode("utf-8")))
                 return True
@@ -88,7 +117,6 @@ class Connect():
         # await asyncio.sleep(t * random.random() * 2)
         await asyncio.sleep(t)
     
- 
     async def producer_original(self, label=1):
         logging.debug(f'------P{label}------')
         while True:
@@ -111,7 +139,6 @@ class Connect():
             await self.queue.put(token)
             await self.rnd_sleep(token*3)
             
-    
     async def consumer_original(self, label=1):
         logging.debug(f'======C{label}======')
         while True:
@@ -152,45 +179,153 @@ class Connect():
     '''
     API functions
     '''
+
+    def login_(self):
+        url = 'http://192.168.1.102:8880' + '/user/passport/login'
+
+        payload = json.dumps({
+            "username": "agilex",
+            "password": "NTdhMTE5NGNiMDczY2U4YjNiYjM2NWU0YjgwNWE5YWU="
+        })
+        headers = {
+            'Content-Type': 'application/json'
+        }
+
+        response = requests.request("POST", url, headers=headers, data=payload)
+        print(f'\n{response.text}\n')
+        token = json.loads(response.text).get('data')
+        self.token = token.get('data')
+
     def login(self):
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#登录请求
+
+        return -> login Token
+        '''
         action = 'post'
-        url = f"http://{self.bot_ip}:8880/apiUrl/user/passport/login"
-        headers = ""
-        params = {
+        # http://192.168.1.102:8880/user/passport/login
+        url = f"{self.http_url}/user/passport/login"
+        headers = {'Content-type': 'application/json'}
+        data = {
             "username": "agilex",
             "password": "NTdhMTE5NGNiMDczY2U4YjNiYjM2NWU0YjgwNWE5YWU="
         }
         try:
-            return self.send_data_http(url, action, headers, params)
+            resp = self.send_data_http(url, action, headers, data)
+            # resp = self.send_data_http(url, action, headers, params)
+            if resp and resp['code'] and resp['data']== 0:
+                return resp['data']
+            else:
+                return None
         except Exception as e:
             logging.error(e)
             return None
         
-    async def get_dev_ver(self):
+    def get_dev_ver(self):
         action = 'get'
-        url = f"http://{self.bot_ip}:8880/apiUrl/dev_version"
-        headers = { "Authorization" : self.auth_token }
+        url = f"http://{self.bot_ip}:8880/dev_version"
+        headers = { "Authorization" : self.token }
         params = ""
         try:
-            return await self.send_data_http(url, action, headers, params)
+            resp = self.send_data_http(url, action, headers, params)
+            if resp and resp['code'] == 0:
+                return resp
+            else:
+                return None
         except Exception as e:
             logging.error(e)
             return None
     
-    async def get_maps(self):
-        action = 'post'
+    def get_maps_list(self):
+        action = 'get'
         sort_type = 'time'
-        is_reverse = ''
-        url = f"http://{self.bot_ip}:8880/apiUrl/map_list?page=1&limit=-1&sortType={sort_type}&reverse={is_reverse}"
-        headers = { "Authorization" : self.auth_token }
+        is_reverse = 'true'
+        url = f"http://{self.bot_ip}:8880/map_list?page=1&limit=-1&sortType={sort_type}&reverse={is_reverse}"
+        headers = { "Authorization" : self.token }
         params = ""
         try:
-            return await self.send_data_http(url, action, headers, params)
+            resp = self.send_data_http(url, action, headers, params)
+            if resp and resp['code'] == 0 and resp['data']['mapList']:
+                return resp['data']['mapList']
+            else:
+                return None
+            
         except Exception as e:
             logging.error(e)
             return None
 
 
+    def set_list_task(self, map_name:str, task_name:str, points:List[Tuple[float, float, float]], speed:float=2):
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#设置某个地图的某个任务信息
+
+        points -> List of tuple(x, y, theta)
+        speed -> max 1.5
+        '''
+        task_points = []
+        for index, point in enumerate(points):
+            task_points.append({
+                "isNew": False,
+                "index": f"point-{index+1}",
+                "pointType": "navigation",
+                "pointName": "",
+                "actions": [],
+                "position": {
+                    "x": point[0],
+                    "y": point[1],
+                    "theta": point[2]
+                },
+                "cpx": 0,
+                "cpy": 0
+                })
+
+        payload = {
+            "mode": "point",
+            "speed": speed,
+            "evadible": 1, # 1：避障，2：停障
+            "points": task_points,
+            "mapName": map_name,
+            "taskName": task_name,
+            "editedName": task_name,
+            "gridItemIdx": 0,
+            "remark": "for testing",
+            "personName": "OBB"
+        }
+        action = 'post'
+        url = f"{self.http_url}/set_task"
+
+        headers = { "Authorization" : self.token, 'Content-Type': 'application/json' }
+        try:
+            resp = self.send_data_http(url, action, headers, data=payload)
+            if resp and resp['code'] == 0:
+                return resp
+            else:
+                return None
+        except Exception as e:
+            logging.error(e)
+            return None
+
+    def run_list_task(self, map_name, task_name):
+
+        payload = {
+            "mapName": map_name, 
+            "taskName": task_name,
+            "loopTime": 1
+        }
+
+        action = 'post'
+        url = f"{self.http_url}/run_list_task"
+
+        headers = { "Authorization" : self.token, 'Content-Type': 'application/json' }
+        try:
+            resp = self.send_data_http(url, action, headers, data=payload)
+            if resp and resp['code'] == 0:
+                return resp
+            else:
+                return None
+        except Exception as e:
+            logging.error(e)
+            return None
 
 
     '''
@@ -208,19 +343,21 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp) # type: ignore
-            RTK_status = resp['msg']['RTK_status']
-            lidar_status = resp['msg']['lidar_status']
-            camera_status = resp['msg']['camera_status']
+            if resp :
+                RTK_status = resp['msg']['RTK_status']
+                lidar_status = resp['msg']['lidar_status']
+                camera_status = resp['msg']['camera_status']
 
-            return (RTK_status, lidar_status, camera_status)
+                return (RTK_status, lidar_status, camera_status)
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
             return None
     
 
-    async def get_rtk_data(self) -> Union[Tuple[str, str, str], bool]: # type: ignore
+    async def get_rtk_data(self) -> Union[Tuple[str, str, str], None]:
         '''
         Getting GPS data from RTK device
 
@@ -233,11 +370,13 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp) # type: ignore
-            status = resp['msg']['nav']
-            name = resp['msg']['name']
-            task = resp['msg']['task']
-            return (status, name, task)
+            if resp:
+                status = resp['msg']['nav']
+                name = resp['msg']['name']
+                task = resp['msg']['task']
+                return (status, name, task)
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
@@ -255,9 +394,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp) # type: ignore
-            nav_status = resp['msg']['nav']['state']
-            return nav_status
+            if resp:
+                nav_status = resp['msg']['nav']['state']
+                return nav_status
+            else:
+                return None
             
         except Exception as e:
             logging.error(e)
@@ -280,10 +421,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            is_success = resp['value']['success'] 
-            
-            return is_success
+            if resp:
+                is_success = resp['value']['success'] 
+                return is_success
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
@@ -315,11 +457,13 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            status = resp['msg']['status'] # e.g. 1 : 正在执行任务
-            map_name = resp['msg']['map_name']
-            text = resp['msg']['text']
-            return (status, map_name, text)
+            if resp:
+                status = resp['msg']['status'] # e.g. 1 : 正在执行任务
+                map_name = resp['msg']['map_name']
+                text = resp['msg']['text']
+                return (status, map_name, text)
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
@@ -339,10 +483,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            path = resp['msg']['poses']
-
-            return path
+            if resp:
+                path = resp['msg']['poses']
+                return path
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
@@ -362,10 +507,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            progress = resp['msg']['data']
-            
-            return progress
+            if resp:
+                progress = resp['msg']['data']
+                return progress
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
@@ -383,10 +529,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            is_get_lost = resp['msg']['data'] # true-定位丢失,false-定位准确
-            
-            return is_get_lost
+            if resp:
+                is_get_lost = resp['msg']['data'] # true-定位丢失,false-定位准确
+                return is_get_lost
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
@@ -407,16 +554,18 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            pos_x = resp['msg']['pose']['pose']['position']['x']
-            pos_y = resp['msg']['pose']['pose']['position']['y']
-            pos_z = resp['msg']['pose']['pose']['position']['z']
-            ori_x = resp['msg']['pose']['pose']['orientation']['x']
-            ori_y = resp['msg']['pose']['pose']['orientation']['y']
-            ori_z = resp['msg']['pose']['pose']['orientation']['z'] 
-            ori_w = resp['msg']['pose']['pose']['orientation']['w'] 
-            
-            return pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, ori_w
+            if resp:
+                pos_x = resp['msg']['pose']['pose']['position']['x']
+                pos_y = resp['msg']['pose']['pose']['position']['y']
+                pos_z = resp['msg']['pose']['pose']['position']['z']
+                ori_x = resp['msg']['pose']['pose']['orientation']['x']
+                ori_y = resp['msg']['pose']['pose']['orientation']['y']
+                ori_z = resp['msg']['pose']['pose']['orientation']['z'] 
+                ori_w = resp['msg']['pose']['pose']['orientation']['w'] 
+                
+                return pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, ori_w
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
@@ -444,65 +593,90 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            is_success = resp['value']['success'] 
-            
-            return is_success
+            if resp:
+                is_success = resp['value']['success'] 
+                return is_success
+            else:
+                return None
 
         except Exception as e:
             logging.error(e)
             return None
     
-    async def set_task_on_map(self, map_name, position=(0,0,0), speed=2 ):
+    async def nav_action(self, map_name, action):
         '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#启动关闭导航
+
+        Map_name: name of map to run action on
+        Action: start, stop, cancel, pause, continue\n
+
         '''
-
-        task_name = ""
-
+        if action not in ['start', 'stop', 'cancel', 'pause', 'continue']:
+            logging.error(f'Incorrect Nav operation action {action}')
+            return None
+       
         message = {
-            "taskName": "",
-            "gridItemIdx": 0,
-            "points": [{
-                "position": {
-                    "y": 0,
-                    "x":  0,
-                    "theta":  0,
-                },
-                "pointType": "",
-                "actions": [{
-                    "actionContent": "",
-                    "actionType": "",
-                    "actionOrder": 0,
-                    "actionName": "",
-                }],
-                "pointName": "",
-                "index": 0,
-                "isNew": False,
-                "cpx": 0,
-                "cpy": 0,
-            }],
-            "mode": "",
-            "evadible": 1,
-            "mapName": map_name,
-            "speed": speed,
-            "editedName": "",
-            "remark": "",
-            "personName": "OBB"
+            "op": "call_service",
+            "service": "/input/op",
+            "type":"tools_msgs/input",
+            "args": {
+                "file_name": map_name, 
+                "op_type": action, # start, stop, cancel, pause, continue
+                "id_type":"navigation" # or waypoint for route-nav
+            }
         }
 
         try:
+            resp = await self.send_data_ws(message)
+            if resp:
+                is_success = resp['value']['success'] 
+                return is_success
+            else:
+                logging.error(f'Nav failed to {action}')
+                return None
 
+        except Exception as e:
+            logging.error(e)
+            return None
+
+    async def run_task_on_current_map(self, position=(0,0,0)):
+        '''
+        file:///Users/hammerchu/Downloads/user_api(1).html#对当前导航的地图执行实时任务
+
+        Position -> x, y, theta
+
+        '''
+
+        # task_name = f"{datetime.now().strftime('%Y:%m:%d:%H:%M:%S')}{map_name}"
+
+        message = {
+            "loopTime": 1, 
+            "points": [{ 
+                "position": {
+                    "x": position[0],
+                    "y": position[1],
+                    "theta": position[2]
+                },
+                "isNew": False,
+                "cpx": 0,
+                "cpy": 0
+            }],
+            "mode": ""
+        }
+
+        try:
             headers = {
             'Authorization': 'MTY3NTg0Njk2NC4xMjk1NjgzJDdmOGEzOTIzNTJmZTAxYzFkOGQ4ZDc1ZTdmMTYzMjBkN2FjNGE0NjM='
             }
    
-            resp = await self.send_data_http("apiUrl/set_task", "post", header=headers, params=message)
-            resp = json.loads(resp)
-            
-            if resp['code']: # 0即表示成功,-1表示失败
-                return True
+            resp = self.send_data_http("apiUrl/set_task", "post", header=headers, data=message)
+            if resp:                
+                if resp['code']: # 0即表示成功,-1表示失败
+                    return True
+                else:
+                    return False
             else:
-                return False            
+                return None            
 
         except Exception as e:
             logging.error(e)
@@ -528,11 +702,12 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
-            resp = json.loads(resp)
-            is_success = resp['value']['success'] 
-            
-            return is_success
-
+            if resp:
+                is_success = resp['value']['success'] 
+                return is_success
+            else:
+                return None
+        
         except Exception as e:
             logging.error(e)
             return None
@@ -564,51 +739,38 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws_no_resp(message)
-            return True
+            if resp:
+                return True
+            else:
+                return None
         except Exception as e:
             return None
 
 
-    async def stop(self):
-        message = {
-            "op":"publish",
-            "topic": "/cmd_vel",
-            "type": "geometry_msgs/Twist",
-            "msg":{
-                "linear": {
-                    "x": 0,
-                    "y": 0,
-                    "z": 0
-                },
-                "angular": {
-                    "x": 0,
-                    "y": 0,
-                    "z": 0
-                }
-            }
-        }
-        try:
-            return await self.send_data_ws_no_resp(message)
-            # return await self.mock_send_data(message)
-        except Exception as e:
-            return f'Error - {e}'
     
     async def lighting(self):
+        '''
+
+        '''
         message = {
             "op":"publish",
             "topic": "/scout_light_control",
             "type": "scout_msgs/ScoutLightCmd",
             "msg": {
                 "enable_cmd_light_control": "true" ,
-                "front_mode": 3,
+                "front_mode": 1,
                 "front_custom_value": 100,
                 "rear_mode": 0,
                 "rear_custom_value": 0
             }
         }
         try:
-            return await self.send_data_ws_no_resp(message)
-            # return await self.mock_send_data(message)
+            resp = await self.send_data_ws_no_resp(message)
+            if resp:
+                return resp
+            else:
+                return None
+
         except Exception as e:
             return f'Error - {e}'
     
@@ -649,9 +811,9 @@ if __name__ == '__main__':
 
     print('Running main')
 
-    app = Connect('192.168.1.1')
+    app = Connect('192.168.1.102')
 
-    # app.lighting()
+    asyncio.run(app.lighting())
 
 
 
