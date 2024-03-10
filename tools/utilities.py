@@ -18,7 +18,7 @@ def timer(some_function):
         return result, end
     return wrapper
 
-def convert_map_to_png_pos(map_name:str, position:Tuple[int, int], gridWidth:int=0, gridHeight:int=0):
+def convert_map_to_png_pos(map_name:str, position:Tuple[float, float], gridWidth:int=0, gridHeight:int=0):
     '''
     convert map coord to map image position
     '''
@@ -43,7 +43,7 @@ def convert_map_to_png_pos(map_name:str, position:Tuple[int, int], gridWidth:int
         png_x = (pose_x - originX) / resolution
         png_y = gridHeight - (pose_y - originY) / resolution
 
-        return png_x, png_y
+        return int(png_x), int(png_y)
 
     except Exception as e:
         logging.error(e)
@@ -79,7 +79,7 @@ def convert_png_to_map_pos(map_name:str, position:Tuple[int, int], gridWidth:int
         logging.error(e)
 
 @timer
-def get_control_map_color(map_name:str, position:Tuple[int, int]) -> Union[Tuple[int, int, int, int], None]:
+def get_control_map_color(map_name:str, position:Tuple[float, float]) -> Union[Tuple[int, int, int, int], None]:
     '''
     return pixel color of a control map of a map
     '''
@@ -95,19 +95,19 @@ def get_control_map_color(map_name:str, position:Tuple[int, int]) -> Union[Tuple
     return result
 
 
-def get_scaled_control_map_color(map_name:str, position:Tuple[int, int]) -> Union[Tuple[int, int, int, int], None]:
+def get_scaled_control_map_color(map_name:str, position:Tuple[float, float]) -> Union[Tuple[int, int, int, int], None]:
     '''
     return pixel color of a control map of a map
     '''
     scale_factor = 5
     result = None
-    control_map_img_path = os.path.join(profile.ROOT_PATH, f'data/maps/{map_name}/{map_name}_control_scaled.png')
+    control_map_img_path = os.path.join(profile.ROOT_PATH, f'data/maps/{map_name}/{map_name}_control.png')
     map_image = Image.open(control_map_img_path)
     gridWidth, gridHeight = map_image.size
     resp = convert_map_to_png_pos(map_name, position, gridWidth*scale_factor, gridHeight*scale_factor)
     if resp:
         png_x, png_y = resp
-        print(f' x, y : { resp} ')
+        print(f' x, y : { resp} - {(int(png_x/scale_factor), int(png_y/scale_factor))}')
         result = map_image.getpixel((int(png_x/scale_factor), int(png_y/scale_factor)))
     return result
 
@@ -116,23 +116,23 @@ def get_scaled_control_map_color(map_name:str, position:Tuple[int, int]) -> Unio
 
     
 if __name__ == '__main__':
-    png_input = (2333,449)
-    resp = convert_png_to_map_pos('Elements04', png_input)
-    if resp:
-        map_x, map_y = resp
-        print(f"\npng pos {png_input} convert to {map_x}, {map_y}\n")
+    # png_input = (2333,449)
+    # resp = convert_png_to_map_pos('Elements04', png_input)
+    # if resp:
+    #     map_x, map_y = resp
+    #     print(f"\npng pos {png_input} convert to {map_x}, {map_y}\n")
 
-    map_input = (0, 0)
-    resp = convert_map_to_png_pos('Elements04', map_input)
-    if resp:
-        png_x, png_y = resp
-        print(f"\nMap pos {map_input} convert to {png_x}, {png_y}\n")
+    # map_input = (0, 0)
+    # resp = convert_map_to_png_pos('Elements04', map_input)
+    # if resp:
+    #     png_x, png_y = resp
+    #     print(f"\nMap pos {map_input} convert to {png_x}, {png_y}\n")
 
-    # resp = get_control_map_color('T001-02', (0,0))
+    # resp = get_control_map_color('Elements04', (0,0))
     # if resp:
     #     print(resp)
     
-    # resp = get_scaled_control_map_color('T001-02', (0,0))
-    # if resp:
-    #     print(resp)
+    resp = get_scaled_control_map_color('Elements04', (4.1,0))
+    if resp:
+        print(resp)
     
