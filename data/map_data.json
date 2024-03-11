@@ -34,11 +34,11 @@
             ],
             "stations" :[
                 {
-                    "station_name" : "S101",
+                    "station_name" : "T002",
                     "position_on_map" : [234, 1234]
                 },
                 {
-                    "station_name" : "S102",
+                    "station_name" : "T003",
                     "position_on_map" : [534, 1534]
                 },
                 {
@@ -61,11 +61,11 @@
             ],
             "stations" :[
                 {
-                    "station_name" : "S201",
+                    "station_name" : "T001",
                     "position_on_map" : [234, 1234]
                 },
                 {
-                    "station_name" : "S202",
+                    "station_name" : "T004",
                     "position_on_map" : [534, 1534]
                 },
                 {
@@ -88,11 +88,11 @@
             ],
             "stations" :[
                 {
-                    "station_name" : "S301",
+                    "station_name" : "T001",
                     "position_on_map" : [234, 1234]
                 },
                 {
-                    "station_name" : "S302",
+                    "station_name" : "T005",
                     "position_on_map" : [534, 1534]
                 },
                 {
@@ -115,11 +115,11 @@
             ],
             "stations" :[
                 {
-                    "station_name" : "S401",
+                    "station_name" : "T002",
                     "position_on_map" : [234, 1234]
                 },
                 {
-                    "station_name" : "S402",
+                    "station_name" : "T005",
                     "position_on_map" : [534, 1534]
                 },
                 {
@@ -142,11 +142,11 @@
             ],
             "stations" :[
                 {
-                    "station_name" : "S501",
+                    "station_name" : "T003",
                     "position_on_map" : [234, 1234]
                 },
                 {
-                    "station_name" : "S502",
+                    "station_name" : "T004",
                     "position_on_map" : [534, 1534]
                 },
                 {
@@ -155,8 +155,5 @@
                 }
             ] 
         }
-    ],
-    "map_station_data" : [
-
     ]
 }
