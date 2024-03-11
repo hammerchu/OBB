@@ -46,7 +46,7 @@ class Plan():
             if map_steps and len(map_steps) > 0:
                 for index, map_step in enumerate(map_steps):
                     if index + 1 < len(map_steps):
-                        station_name, station_position = self.get_goal_station_on_current_map(map_steps[index], map_steps[index+1])
+                        station_name = self.get_goal_station_on_current_map(map_steps[index], map_steps[index+1])
                         print('A', map_step, station_name )
                         map_station_steps.append({
                             "goal_map_name" : map_step,
@@ -142,6 +142,33 @@ class Plan():
         # If no path is found from the starting map to the destination map, return None
         return None
 
+    def get_station_position(self, map_name, station_name) -> List:
+        '''
+        Get the position of specific station on a map
+
+        Return [x, y] as a list
+        Return [-1, -1] if station is not found
+        '''
+        result = [-1, -1]
+        for map in self.map_data:
+            if map['map_name'] == map_name:
+                for station in map['stations']:
+                    if station['station_name'] == station_name:
+                        result = station['position_on_map']
+        return result
+
+    def is_station_on_map(self, map_name, station_name) -> bool:
+        '''
+        Return if the provided station is located on the provided map
+        '''
+        result = False
+        for map in self.map_data:
+            if map['map_name'] == map_name:
+                for station in map['stations']:
+                    if station['station_name'] == station_name:
+                        result = True
+        return result
+
 
     def get_map_from_station(self, station_name) -> Union[str, None]:
         '''
@@ -170,10 +197,10 @@ class Plan():
         Get goal station name for travelling to target_map from current_map, 
         
         Return tuple of (name of goal station(str), position of the station on current_map(x, y))
-        Return '' and position (-1, -1) if there is no goal station available
+        Return '' and position [-1, -1] if there is no goal station available
         '''
         goal_station = ''
-        position = (-1, -1)
+        # position = [-1, -1]
         for map_data in self.map_data:
             if map_data['map_name'] == current_map: # find the current map
                 
@@ -186,30 +213,36 @@ class Plan():
                             if station['station_name'] == goal_station:
                                 position = station['position_on_map']
 
-        return goal_station, position
+        return goal_station
         
+    
 
 
 if __name__ == '__main__':
     # print(path.map_connection_data)
     plan = Plan()
 
-    steps = plan.find_shortest_map_steps('T001', 'T005' )
-    print(f' steps : { steps} ')
+    # steps = plan.find_shortest_map_steps('T001', 'T005' )
+    # print(f' steps : { steps} ')
 
-    station = 'S303'
-    resp = plan.get_map_from_station(station)
-    print(f' map from {station} : {resp}')
+    # station = 'S303'
+    # resp = plan.get_map_from_station(station)
+    # print(f' map from {station} : {resp}')
 
-    start = 'T002'
-    end = 'T001'
-    resp = plan.get_goal_station_on_current_map( start, end)
-    print(f'Goal station from {start} to {end}: {resp}')
+    # start = 'T002'
+    # end = 'T001'
+    # resp = plan.get_goal_station_on_current_map( start, end)
+    # print(f'Goal station from {start} to {end}: {resp}')
 
-    start, end = 'T001', 'T005' 
-    big_plan = plan.get_map_station_steps('T001', 'T005', 'S503' )
-    print(f'Big_plan from {start} to {end}: { big_plan} ')
+    # start, end = 'T001', 'T005' 
+    # big_plan = plan.get_map_station_steps('T001', 'T005', 'S503' )
+    # print(f'Big_plan from {start} to {end}: { big_plan} ')
 
+    # resp = plan.get_station_position('T004', 'S403')
+    # print(resp)
+
+    resp = plan.is_station_on_map('T004', 'S405')
+    print(resp)
 
 
 
