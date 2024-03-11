@@ -1,6 +1,7 @@
 #-*-coding:utf-8-*-
 from typing import Tuple, List, Dict, Union
 from urllib import response
+import sys
 import time
 from datetime import datetime
 import logging
@@ -27,7 +28,7 @@ class Connect():
         http_port = "8880"
         ws_port = "9090"
         self.http_url = f"http://{self.bot_ip}:{http_port}"
-        self.ws_url = f"http://{self.bot_ip}:{ws_port}"
+        self.ws_url = f"ws://{self.bot_ip}:{ws_port}"
         self.queue = asyncio.Queue()
 
         self.finish = False
@@ -41,14 +42,14 @@ class Connect():
         logging.info(f' Dev ver: {self.get_dev_ver()}\n\n')
 
         '''Test'''
-        task_points = [(0,0,0), (3, 2, 180) , (10, 2, 0)]
-        map_name='Elements04'
-        task_name='Element04_test_02'
+        # task_points = [(0,0,0), (3, 0, 180) , (10, 0, 0)]
+        # map_name='Elements04'
+        # task_name='Element04_test_03'
+        # print('\n')
+        # self.set_list_task(map_name, task_name, task_points)
+        # print('\n')
         # logging.info(f' Map list: {self.get_maps_list()}')
-        print('\n')
-        self.set_list_task(map_name, task_name, task_points)
-        print('\n')
-        logging.info(f' Map list: {self.get_maps_list()}')
+        
 
 
         # asyncio.run(self.run()) // error -> got Future <Future pending> attached to a different loop
@@ -86,12 +87,15 @@ class Connect():
         async with websockets.connect(self.ws_url) as websocket:
             try:
                 await websocket.send(bytes(json.dumps(message, ensure_ascii=False).encode("utf-8")))
-                resp = asyncio.wait_for(websocket.recv(), timeout=self.timeout_limit)
+                # resp = asyncio.wait_for(websocket.recv(), timeout=self.timeout_limit)
+                resp = await websocket.recv()
                 if resp:
                     return json.loads(str(resp))
                 else:
+                    logging.info('------ A')
                     return None
             except:
+                logging.info('----- B')
                 return None
     
 
@@ -180,22 +184,6 @@ class Connect():
     API functions
     '''
 
-    def login_(self):
-        url = 'http://192.168.1.102:8880' + '/user/passport/login'
-
-        payload = json.dumps({
-            "username": "agilex",
-            "password": "NTdhMTE5NGNiMDczY2U4YjNiYjM2NWU0YjgwNWE5YWU="
-        })
-        headers = {
-            'Content-Type': 'application/json'
-        }
-
-        response = requests.request("POST", url, headers=headers, data=payload)
-        print(f'\n{response.text}\n')
-        token = json.loads(response.text).get('data')
-        self.token = token.get('data')
-
     def login(self):
         '''
         file:///Users/hammerchu/Downloads/user_api(1).html#登录请求
@@ -213,9 +201,10 @@ class Connect():
         try:
             resp = self.send_data_http(url, action, headers, data)
             # resp = self.send_data_http(url, action, headers, params)
-            if resp and resp['code'] and resp['data']== 0:
+            if resp and resp['code'] == 0:
                 return resp['data']
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
         except Exception as e:
             logging.error(e)
@@ -231,6 +220,7 @@ class Connect():
             if resp and resp['code'] == 0:
                 return resp
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
         except Exception as e:
             logging.error(e)
@@ -248,6 +238,7 @@ class Connect():
             if resp and resp['code'] == 0 and resp['data']['mapList']:
                 return resp['data']['mapList']
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
             
         except Exception as e:
@@ -300,6 +291,7 @@ class Connect():
             if resp and resp['code'] == 0:
                 return resp
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
         except Exception as e:
             logging.error(e)
@@ -322,6 +314,7 @@ class Connect():
             if resp and resp['code'] == 0:
                 return resp
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
         except Exception as e:
             logging.error(e)
@@ -343,13 +336,14 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp :
+            if resp and resp['msg']:
                 RTK_status = resp['msg']['RTK_status']
                 lidar_status = resp['msg']['lidar_status']
                 camera_status = resp['msg']['camera_status']
 
                 return (RTK_status, lidar_status, camera_status)
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -370,22 +364,37 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['msg']:
                 status = resp['msg']['nav']
                 name = resp['msg']['name']
                 task = resp['msg']['task']
                 return (status, name, task)
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
             logging.error(e)
             return None
     
+    def ws_test(self):
+        message = {
+            "op":"subscribe",
+            "topic": "/slam_status",
+            "type": "tools_msgs/slamStatus"
+        }
 
-    async def is_nav_on(self) -> Union[bool, None]:
+        loop = asyncio.get_event_loop()
+        r = loop.run_until_complete(self.send_data_ws(message))
+        loop.close()
+        print('feedback', r)
+
+    async def get_nav_status(self) -> Union[Tuple[bool, str, str], None]:
         '''
-        Return True if bot's nav mode is ON
+        Return\n
+        nav_status -> True if bot's nav mode is ON\n
+        map_name -> current map, return '' if no active map\n
+        task_name -> current task, return '' if no active task\n
         '''
         message = {
             "op":"subscribe",
@@ -394,10 +403,13 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['msg']['nav']['state']:
                 nav_status = resp['msg']['nav']['state']
-                return nav_status
+                map_name = resp['msg']['nav']['name']
+                task_name = resp['msg']['nav']['task']
+                return nav_status, map_name, task_name
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
             
         except Exception as e:
@@ -421,10 +433,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['value']['success'] :
                 is_success = resp['value']['success'] 
                 return is_success
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -432,7 +445,7 @@ class Connect():
             return None
 
 
-    async def get_navi_code(self) -> Union[Tuple[str, str, str], None]: # type: ignore
+    async def get_navi_code(self) -> Union[str, None]: # type: ignore
         '''
         Getting navigation status\n
         status -> 
@@ -457,12 +470,14 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['msg']:
                 status = resp['msg']['status'] # e.g. 1 : 正在执行任务
-                map_name = resp['msg']['map_name']
-                text = resp['msg']['text']
-                return (status, map_name, text)
+                # map_name = resp['msg']['map_name']
+                # text = resp['msg']['text']
+                # return (status, map_name, text)
+                return status
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -483,10 +498,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['msg']['poses']:
                 path = resp['msg']['poses']
                 return path
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -507,10 +523,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['msg']['data']:
                 progress = resp['msg']['data']
                 return progress
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -529,10 +546,11 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['msg']['data']:
                 is_get_lost = resp['msg']['data'] # true-定位丢失,false-定位准确
                 return is_get_lost
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -540,7 +558,7 @@ class Connect():
             return None
 
 
-    async def get_bot_position(self) -> Union[Tuple[int, int, int, int, int, int, int], None]: 
+    async def get_bot_position(self) -> Union[List, None]: 
         '''
         topic = /odom 可用于获取机器人导航时，相对于地图原点的位置\n
         topic = /odom_raw 获取机器人相对初始点(开机启动点)的里程与位置信息\n
@@ -554,7 +572,7 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['msg']:
                 pos_x = resp['msg']['pose']['pose']['position']['x']
                 pos_y = resp['msg']['pose']['pose']['position']['y']
                 pos_z = resp['msg']['pose']['pose']['position']['z']
@@ -563,8 +581,9 @@ class Connect():
                 ori_z = resp['msg']['pose']['pose']['orientation']['z'] 
                 ori_w = resp['msg']['pose']['pose']['orientation']['w'] 
                 
-                return pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, ori_w
+                return [pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, ori_w]
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -593,10 +612,11 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['value']['success']:
                 is_success = resp['value']['success'] 
                 return is_success
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -628,11 +648,11 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['value']['success'] :
                 is_success = resp['value']['success'] 
                 return is_success
             else:
-                logging.error(f'Nav failed to {action}')
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -644,11 +664,9 @@ class Connect():
         file:///Users/hammerchu/Downloads/user_api(1).html#对当前导航的地图执行实时任务
 
         Position -> x, y, theta
-
         '''
 
         # task_name = f"{datetime.now().strftime('%Y:%m:%d:%H:%M:%S')}{map_name}"
-
         message = {
             "loopTime": 1, 
             "points": [{ 
@@ -702,10 +720,11 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
-            if resp:
+            if resp and resp['value']['success']:
                 is_success = resp['value']['success'] 
                 return is_success
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
         
         except Exception as e:
@@ -717,6 +736,7 @@ class Connect():
     async def cmd_vel(self, linear_x:float=0.0, angular_x:float=0.0) -> Union[bool, None]:
         '''
         Drive the bot;\n
+
         linear_x > 0 -> moving forward\n
         angular_x > 0 -> turn left
         '''
@@ -742,6 +762,7 @@ class Connect():
             if resp:
                 return True
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
         except Exception as e:
             return None
@@ -750,7 +771,7 @@ class Connect():
     
     async def lighting(self):
         '''
-
+        Control lighting 
         '''
         message = {
             "op":"publish",
@@ -769,6 +790,7 @@ class Connect():
             if resp:
                 return resp
             else:
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
                 return None
 
         except Exception as e:
@@ -812,8 +834,11 @@ if __name__ == '__main__':
     print('Running main')
 
     app = Connect('192.168.1.102')
+    # r = asyncio.run(app.get_nav_status())
+    app.ws_test()
+    # print(r)
 
-    asyncio.run(app.lighting())
+    # asyncio.run(app.lighting())
 
 
 
