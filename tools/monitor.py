@@ -5,6 +5,7 @@ from datetime import datetime
 import asyncio
 import time
 from threading import Thread
+from turtle import bgcolor
 from bot.classes.connection import Connect
 from bot.classes.navigate import Navigate
 from bot.tools.utilities import get_scaled_control_map_color
@@ -39,6 +40,7 @@ if not testing_ui:
     nav = Navigate()
 
 current_page = 0
+total_page = 2
 
 is_nav_on = StringVar()
 is_nav_on.set(FONT_COLOR)
@@ -90,14 +92,8 @@ vars = [
     ]
 
 
-def submit_button_clicked(index, label_value, entry_value, auth_token):
-    eval_str = f'app.{label_value.lower()}({entry_value.lower()})'
-    print(f' eval_str : { eval_str} ')
 
-    resp_bot = asyncio.run(eval(eval_str))
-    print(f' resp_bot : { resp_bot} ')
-    print('--------------------\n')
-    # mark_log(resp_bot)
+
 
 def close_window():
     with open('log', 'a+') as log_file:
@@ -110,15 +106,7 @@ def close_window():
 
 
 
-# Function to change the background color temporarily
-def change_background_color():
-    # Change the background color to a different color
-    window.configure(bg="lightblue")
 
-    # After 0.5 seconds, restore the background color to white
-    window.after(500, lambda: window.configure(bg="white"))
-
-    
 
 
 
@@ -127,7 +115,9 @@ async def space_bar_pressed(event):
     # Perform your desired actions here
     print("Space bar pressed")
     change_background_color()
-    asyncio.run(conn.cmd_vel())
+    # asyncio.run(conn.cmd_vel())
+
+
 
 def timer():
     count = 0
@@ -177,11 +167,13 @@ def update_loops():
             if r and r[1]:
                 current_map_name=r[1]
                 current_map.set(r[1])
+                map_name_entry_field.insert(0, r[1]) 
             else:
                 current_map.set('unknown')
 
             if r and r[2]:
                 current_task.set(r[2])
+                
             else:
                 current_task.set('unknown')
             
@@ -206,8 +198,8 @@ def update_loops():
             print(f' get_bot_position : { r} ')
             if r and r[0]:
                 current_map_position = (r[0], r[1])
-                position.set(str((r[0], r[1], r[2])))
-                orientation.set(str((r[3], r[4], r[5], r[6])))
+                position.set((str(r[0]).zfill(1) + ' ' + str(r[1]).zfill(1) + ' ' +  str(r[2]).zfill(1)))
+                orientation.set((str(r[3]).zfill(1) + ' ' + str(r[4]).zfill(1) + ' ' +  str(r[5]).zfill(1) + ' ' +  str(r[6]).zfill(1)))
             # print(f' position : { position.get() } ')
             # print(f' orientation : { orientation.get() } ')
             
@@ -231,16 +223,28 @@ def update_loops():
         time.sleep(60/30)
 
 
+def submit(map_name_entry_field, task_name_entry_field, button):
+    print(f' map : { map_name_entry_field.get()} - task : {task_name_entry_field.get()} - {button} ')
+    
+
+# Function to change the background color temporarily
+def change_component_color(component):
+    # Change the background color to a different color
+    component.configure(bg="green")
+    submit_button_2.configure(bg='blue')
+
+    # After 0.5 seconds, restore the background color to white
+    component.after(500, lambda: component.configure(bg="white"))
+
+
 
 ''' UI '''
 
-# # Run the update loop
-# # if not testing_ui:
-# update_thread = Thread(target=update_loops)
-# update_thread.start()
+
 
 # Bind space bar key press event to the function
 window.bind("<space>", space_bar_pressed)
+# window.bind("<space>", switch_page)
 
 # Initialize the output variable
 output = ""
@@ -250,41 +254,75 @@ output_var = StringVar()
 count_var.set(str(0))
 output_var.set('')
 
-# Create a frame for the card stack
-card_stack_frame = tk.Frame(window, bg="white", width=390, height=90, padx=5, pady=5)
-card_stack_frame.pack(padx=5, pady=2)
+tabControl = ttk.Notebook(window) 
+tab1 = ttk.Frame(tabControl, width=390, height=90)
 
-# Create the content label
-content_label = tk.Label(card_stack_frame, text="", font=("Arial", 5))
-content_label.pack(side=tk.BOTTOM, padx=5, pady=2)
+tab2 = ttk.Frame(tabControl, width=390, height=90) 
+  
+tabControl.add(tab1, text ='    Info    ') 
+tabControl.add(tab2, text ='    Task    ') 
+tabControl.pack(expand = 1, fill ="both") 
 
-# Create additional card stacks
+
+'''
+TAB 1
+'''
+
 content_label_list = []
+# card_stack_frame_p1 = tk.Frame(tab1, bg="white", width=390, height=240, padx=5, pady=5)
+# card_stack_frame_p1.pack(padx=5, pady=5)
+
 for i, title in enumerate(titles):
-    # Create a frame for the card stack
-    card_stack_frame = tk.Frame(window, bg="white", width=390, height=240, padx=5, pady=5)
-    card_stack_frame.pack(padx=5, pady=5)
 
     # Create the title label
-    title_label = tk.Label(card_stack_frame, text=title, font=("Arial", 16, "bold"), fg=FONT_COLOR)
+    title_label = tk.Label(tab1, text=title, font=("Arial", 12, "bold"), fg=FONT_COLOR, bg='systemTransparent')
     title_label.pack(side=tk.TOP, padx=5, pady=2)
 
 
     # Create the content label
-    # content_label = tk.Label(card_stack_frame, textvariable=vars[i], font=("Arial", 26))
-    content_label = tk.Label(card_stack_frame, textvariable=vars[i], font=("Arial", 26))
-    content_label.pack( padx=5, pady=5)
+    content_label = tk.Label(tab1, textvariable=vars[i], font=("Arial", 26), bg='systemTransparent')
+    content_label.pack(side=tk.TOP, padx=5, pady=5)
     content_label_list.append(content_label)
 
+     # Create the title label
+    space = tk.Label(tab1, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
+    space.pack(side=tk.TOP, padx=5, pady=3)
 
-    # Create a separator line
-    if i < len(titles)-1:
-        separator = tk.Frame(card_stack_frame, height=2, width=380, bg="grey")
-        separator.pack(side=tk.BOTTOM, pady=2)
+
+'''
+TAB 2
+'''
+map_name_entry_field = tk.Entry(tab2, width=80)
+map_name_entry_field.pack(side=tk.TOP, padx=5, pady=5)
+
+space = tk.Label(tab2, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
+space.pack(side=tk.TOP, padx=5, pady=3)
+
+task_name_entry_field_1 = tk.Entry(tab2, width=80)
+task_name_entry_field_1.insert(0, f" task_name_1") 
+task_name_entry_field_1.pack(side=tk.TOP, padx=5, pady=5)
+
+submit_button_1 = tk.Button(tab2, text=f"Submit 1", command=lambda: submit(map_name_entry_field, task_name_entry_field_1, submit_button_1), width=80)
+submit_button_1.pack(side=tk.TOP, padx=5, pady=5)
+
+space = tk.Label(tab2, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
+space.pack(side=tk.TOP, padx=5, pady=3)
+
+
+task_name_entry_field_2 = tk.Entry(tab2, width=80)
+task_name_entry_field_2.insert(0, f" task_name_2") 
+task_name_entry_field_2.pack(side=tk.TOP, padx=5, pady=5)
+
+submit_button_2 = tk.Button(tab2, text=f"Submit 2", command=lambda: submit(map_name_entry_field, task_name_entry_field_2, submit_button_2), width=80)
+submit_button_2.pack(side=tk.TOP, padx=5, pady=5)
+
+
+
 
 # Create a frame for the message box
-message_box_frame = tk.Frame(window, bg="light grey", bd=1, relief=tk.SOLID, width=390, height=50, padx=5, pady=5)
+message_box_frame = tk.Frame(tab2, bg="light grey", bd=1, relief=tk.SOLID, width=390, height=50, padx=5, pady=5)
 message_box_frame.pack(side=tk.BOTTOM, padx=5, pady=5)
+
 
 # Create the message label
 message_label = tk.Label(message_box_frame, textvariable=output_var, font=("Arial", 14), width=390, height=50)
@@ -294,8 +332,7 @@ message_label.pack()
 small_label = tk.Label(window, textvariable=count_var, font=("Arial", 14))
 small_label.place(x=5, y=5)
 
-# Create a close button at the lower right corner of the entire GUI
-close_button = tk.Button(message_box_frame, text="Close", command=close_window, height= 3, width=10)
+
 
 # Run the update loop
 # if not testing_ui:
