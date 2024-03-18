@@ -9,7 +9,7 @@ from turtle import bgcolor
 from bot.classes.connection import Connect
 from bot.classes.navigate import Navigate
 from bot.tools.utilities import get_scaled_control_map_color
-
+from bot.tools.joystick import PS4Controller
 import logging
 
 testing_ui = True
@@ -24,8 +24,10 @@ window.geometry("400x860")
 FONT_COLOR = '#cccccc'
 
 if not testing_ui:
+    ps4 = PS4Controller()
+    ps4.init()
+
     nav = Navigate()
-    # conn = Connect('192.168.1.102')
     conn = nav.connection
     r = conn.login()
     if r:
@@ -313,7 +315,7 @@ def submit(map_field, entry_field, type):
     elif type == 'task':
         # Run a preset task on a map
         nav.connection.run_list_task(map_field.get(), entry_field.get())
-        
+
     else:
         logging.error(f'Unknown submit action type, {type}')
 
@@ -441,6 +443,8 @@ update_thread = Thread(target=update_loops)
 update_thread.start()
 timer_thread = Thread(target=timer)
 timer_thread.start()
+
+
 
 # Start the GUI event loop
 window.mainloop()
