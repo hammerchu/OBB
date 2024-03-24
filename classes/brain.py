@@ -13,10 +13,14 @@ from bot.classes.navigate import Navigate
 from bot.classes.plan import Plan
 from bot.classes.call import Call
 from bot.tools import zone_cmd
-
+from bot.tools.monitor import Monitor
 from bot.tools import profile
 
-logging.basicConfig(level=logging.INFO)
+import coloredlogs, logging, verboselogs
+logger = verboselogs.VerboseLogger(__name__)
+# logger.basicConfig(level=logger.DEBUG)
+coloredlogs.install(level='VERBOSE')
+
 
 '''
 Control center of the robot
@@ -32,18 +36,18 @@ Receive hi-level commands from HUBS and execute them as actions
 '''
 
 
-from flask import Flask, request
-from flask_cors import CORS
-from threading import Thread
-import asyncio
-import logging
-import time
+# from flask import Flask, request
+# from flask_cors import CORS
+# from threading import Thread
+# import asyncio
+# import logging
+# import time
 
-from bot.classes.navigate import Navigate
-from bot.classes.plan import Plan
-from bot.classes.call import Call
+# from bot.classes.navigate import Navigate
+# from bot.classes.plan import Plan
+# from bot.classes.call import Call
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 
 class RobotControlCenter:
@@ -57,11 +61,20 @@ class RobotControlCenter:
         self.plan = None
         self.call = None
 
+        
+
     def setup(self):
         self.nav = asyncio.run(Navigate._init_())  # Nav instance
         self.plan = Plan()  # Plan instance
-        # self.call = Call('M', 60, 0)  # Call and Streaming instance
-        # self.call.run('https://onbotbot.daily.co/_test')
+        self.start_call()
+
+    def start_call(self):
+        self.call = Call('M', 60, 0)  # Call and Streaming instance
+        self.call.run('https://onbotbot.daily.co/_test')
+
+    def quit_call(self):
+        if self.call:
+            self.call.leave()
 
     def action_thread(self):
         '''
@@ -76,15 +89,14 @@ class RobotControlCenter:
 
             # if self.nav and self.call and self.plan and self.nav.is_navigating:
             if self.nav and self.plan and self.nav.is_on_nav:
-                logging.debug('Nav code: ', self.nav.code)
                 if not is_asking_help and self.nav.code and self.nav.code >= 6:
                     '''ask for help from HUBS'''
-                    logging.info('Stuck: ', self.nav.code)
+                    logger.critical('~~~~ Stuck: ', self.nav.code)
                     # self.call.stuck_message(self.nav.nav_code)
                     is_asking_help = True
                 elif is_asking_help and self.nav.code and self.nav.code < 6:
                     '''recovered from stuck'''
-                    logging.info('Recovered from stuck: ', self.nav.code)
+                    logger.success('~~~~ Recovered from stuck: ', self.nav.code)
                     # self.call.recovered_message(self.nav.nav_code)
                     is_asking_help = False
             else:
@@ -106,7 +118,7 @@ class RobotControlCenter:
 
         for index, color in enumerate(color_list):
             if self.nav:
-                logging.info(f'control map color: {self.nav.control_map_color} ')
+                logger.info(f'~~~~~~~~ control map color: {self.nav.control_map_color} ')
                 if self.nav.control_map_color == color:
                     eval(f"zone_cmd.{cmd_list[index]}")
 
@@ -120,7 +132,7 @@ class RobotControlCenter:
         Travel to target station
         '''
         dest_station_id = request.get_json()['dest_station_id']
-        logging.info(f'Start travel to dest_station_id : {dest_station_id} ')
+        logger.info(f'~~~~~~~~ Start travel to dest_station_id : {dest_station_id} ')
         return ""
 
 
@@ -131,19 +143,24 @@ class RobotControlCenter:
         Thread(target=self.action_thread).start()
 
 
-    def run(self):
-        logging.info('\n\n -----BRAIN-----\n\n')
+    def run(self, ui=False):
+        logger.info('\n\n ~~~~~~ BRAIN ~~~~~~\n\n')
         self.setup()
         self.bringup()
-        # self.run_location_based_cmd()
+
         self.app.add_url_rule('/', 'index', self.index, methods=['GET'])
         self.app.add_url_rule('/goto', 'travel_to', self.travel_to, methods=['POST'])
         self.app.run(host='0.0.0.0', port=8000, debug=True)
 
+        if ui:
+            self.ui = Monitor(self.nav, load_connection=False, load_controller=False)
+        else:
+            self.ui = None
+
 
 if __name__ == '__main__':
     robot_control_center = RobotControlCenter()
-    robot_control_center.run()
+    robot_control_center.run(ui=True)
 
 
 # app = Flask(__name__, static_url_path="", static_folder="static")

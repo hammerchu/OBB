@@ -12,440 +12,363 @@ from bot.tools.utilities import get_scaled_control_map_color
 from bot.tools.joystick import DS4
 import logging
 
-load_connection = True
-load_controller = False
+# load_connection = True
+# load_controller = False
 
 logging.basicConfig(level=logging.INFO)
 
+class Monitor:
 
-window = tk.Tk()
-window.title("OBB Testing")
-window.geometry("400x860")
+    def __init__(self, nav, load_connection=True, load_controller=True ):
+        self.window = tk.Tk()
+        self.window.title("OBB Testing")
+        self.window.geometry("400x860")
 
-FONT_COLOR = '#cccccc'
+        self.FONT_COLOR = '#cccccc'
 
-if load_connection:
-    try:
-        # nav = Navigate()
-        nav = asyncio.run( Navigate._init_())
-        conn = nav.connection
-        r = conn.login()
-        if r:
-            auth_token = r
-        else:
-            output = f'Unable to obtain API token'
-            auth_token = ''
-        r = conn.get_maps_list()
-        print(r)
-    except Exception as e:
-        logging.warning("Unable to connect to BOT: ", e)
+        self.nav_code_label = {
+            '0' : '等待新任务',
+            '1' : '正在执行任务',
+            '2' : '取消任务',
+            '3' : '任务完成',
+            '4' : '任务中断',
+            '5' : '任务暂停',
+            '6' : '定位丢失',
+            '7' : '异常状态',
+            '8' : '任务异常暂停',
+            '9' : '机器人充电',
+            }
 
-if load_controller:  
-    controller = DS4()
-    controller.init()
+        self.running = True
 
-current_page = 0
-total_page = 2
+        self.ui()
 
-is_nav_on = StringVar()
-is_nav_on.set(FONT_COLOR)
-# current_map = StringVar()
-# current_map.set('unknown')
-current_task =  StringVar()
-current_task.set('unknown')
-nav_code = StringVar()
-nav_code.set('unknown')
-nav_progress = StringVar()
-nav_progress.set(str(0))
-position = StringVar()
-position.set(str((-1, -1, -1)))
-orientation = StringVar()
-orientation.set(str((-1, -1, -1, -1)))
-control_map_color = StringVar()
-control_map_color.set(str((0, 0, 0, 0)))
-vel = StringVar()
-vel.set(str((-1, -1)))
+        if load_connection:
+            try:
 
-running = True
+                # nav = asyncio.run( Navigate._init_()) # coming from inoput instead
+                self.nav = nav
+                # conn = self.nav.connection
+                r = self.nav.connection.login()
+                if r:
+                    auth_token = r
+                else:
+                    output = f'Unable to obtain API token'
+                    auth_token = ''
+                r = self.nav.connection.get_maps_list()
+                print(r)
+            except Exception as e:
+                logging.warning("Unable to connect to BOT: ", e)
 
+        if load_controller:  
+            controller = DS4()
+            controller.init()
 
+        # Run the update loop
+        update_thread = Thread(target=self.update_loops)
+        update_thread.start()
+        timer_thread = Thread(target=self.timer)
+        timer_thread.start()
 
-nav_code_label = {
-    '0' : '等待新任务',
-    '1' : '正在执行任务',
-    '2' : '取消任务',
-    '3' : '任务完成',
-    '4' : '任务中断',
-    '5' : '任务暂停',
-    '6' : '定位丢失',
-    '7' : '异常状态',
-    '8' : '任务异常暂停',
-    '9' : '机器人充电',
-    }
-
-titles = [
-    # 'Current map', 
-    'Current task', 
-    'Nav progress',
-    'Nav Code', 
-    'Position', 
-    'Orientation', 
-    'Control Map Color',
-    'vel'
-    ]
-vars = [
-    # current_map, 
-    current_task, 
-    nav_progress, 
-    nav_code, 
-    position,
-    orientation, 
-    control_map_color,
-    vel
-    ]
+        # Start the GUI event loop
+        self.window.mainloop()
 
 
-def close_window():
-    # with open('log', 'a+') as log_file:
+    def ui(self):
+        self.is_nav_on = StringVar()
+        self.is_nav_on.set(self.FONT_COLOR)
+        # current_map = StringVar()
+        # current_map.set('unknown')
+        self.current_task =  StringVar()
+        self.current_task.set('unknown')
+        self.nav_code = StringVar()
+        self.nav_code.set('unknown')
+        self.nav_progress = StringVar()
+        self.nav_progress.set(str(0))
+        self.position = StringVar()
+        self.position.set(str((-1, -1, -1)))
+        self.orientation = StringVar()
+        self.orientation.set(str((-1, -1, -1, -1)))
+        self.control_map_color = StringVar()
+        self.control_map_color.set(str((0, 0, 0, 0)))
+        self.vel = StringVar()
+        self.vel.set(str((-1, -1)))
 
-    #     log_file.write(f'\n<section closed at {datetime.now().strftime("%m/%d/%Y, %H:%M:%S")}>')
-    #     log_file.write('\n')
-    #     # log_file.write(outputs)
-    global running 
-    running = False
-    # update_thread.join()
-    # timer_thread.join()
-    window.destroy()
+        self.titles = [
+            # 'Current map', 
+            'Current task', 
+            'Nav progress',
+            'Nav Code', 
+            'Position', 
+            'Orientation', 
+            'Control Map Color',
+            'vel'
+            ]
+        
+        self.vars = [
+            # current_map, 
+            self.current_task, 
+            self.nav_progress, 
+            self.nav_code, 
+            self.position,
+            self.orientation, 
+            self.control_map_color,
+            self.vel
+            ]
+        ''' UI '''
 
+        # Bind space bar key press event to the function
+        # window.bind("<space>", space_bar_pressed)
+        # window.bind("<space>", switch_page)
 
-def timer():
-    count = 0
-    while running:
-        # print(f'# {count}')
-        count += 1 
-        time.sleep(1)
+        self.count_var = StringVar()
+        self.output_var = StringVar()
+        self.count_var.set(str(0))
+        self.output_var.set('')
 
-def update_loops():
-    global is_nav_on
-    global nav_code
-    global nav_progress
-    global position
-    global orientation
-    global current_map
-    global current_task
-    global FONT_COLOR
-    global count_var
-    global output_var
-    global title_label
+        tabControl = ttk.Notebook(self.window) 
+        tab1 = ttk.Frame(tabControl, width=390, height=90)
 
-    current_map_name = ''
-    current_map_position = (-1, -1)
-    counter = 0
-    while running:
-        # new_loop = asyncio.new_event_loop()
-        # asyncio.set_event_loop(new_loop)
-        # loop = asyncio.get_event_loop()
-        try:
-            
-            print(f'-- get_nav_status : { nav.nav_status} \n')
-            if nav.nav_status:
-                # if is_nav_on is ON
-                FONT_COLOR = 'black'
-            else:
-                FONT_COLOR = 'red'
-            for c in content_label_list:
-                c.config(fg=FONT_COLOR)
-
-            # if nav.current_map:
-            #     # current_map_name=r[1]
-            #     current_map.set(nav.current_map)
-            # else:
-            #     current_map.set('unknown')
-
-            if nav.current_map and nav.current_task:
-                current_task.set(f'{nav.current_task} @ {nav.current_map}' )
-            else:
-                current_task.set('unknown')
-            
-
-            logging.debug(f'-- get_navi_code : { nav.code } - {nav_code_label[(str(nav.code))]}\n')
-            if nav.code is not None:
-                nav_code.set(f'{nav_code_label[(str(nav.code))]}')
-            else:
-                nav_code.set('-----')            
+        tab2 = ttk.Frame(tabControl, width=390, height=90) 
+        tab3 = ttk.Frame(tabControl, width=390, height=90) 
+        
+        tabControl.add(tab3, text ='    Bring up    ') 
+        tabControl.add(tab2, text ='    Task    ') 
+        tabControl.add(tab1, text ='    Info    ') 
+        tabControl.pack(expand = 1, fill ="both") 
 
 
-            if nav.progress is not None:
-                nav_progress.set(str(nav.progress))
-            else:
-                nav_progress.set('-----')
-            
-            
-            logging.debug(f'-- get_bot_position : { nav.px}, {nav.py} ')
-            if nav.px is not None and nav.py is not None and nav.py is not None and nav.ox is not None and nav.oy is not None and nav.oz is not None and nav.ow is not None:
-                current_map_position = (nav.px, nav.py)
-                position.set(str(   round(nav.px, 2),  round(nav.py, 2)  ))
-                orientation.set(str(    (round(nav.ox, 2), round(nav.oy, 2),round(nav.oz, 2),round(nav.ow, 2))  ))
+        '''
+        TAB 1
+        '''
+
+        self.content_label_list = []
+        # card_stack_frame_p1 = tk.Frame(tab1, bg="white", width=390, height=240, padx=5, pady=5)
+        # card_stack_frame_p1.pack(padx=5, pady=5)
+
+        for i, title in enumerate(self.titles):
+
+            # Create the title label
+            title_label = tk.Label(tab1, text=title, font=("Arial", 12, "bold"), fg=self.FONT_COLOR, bg='systemTransparent')
+            title_label.pack(side=tk.TOP, padx=5, pady=2)
 
 
-                control_map_color.set(str(nav.control_map_color)) 
+            # Create the content label
+            content_label = tk.Label(tab1, textvariable=self.vars[i], font=("Arial", 26), bg='systemTransparent')
+            content_label.pack(side=tk.TOP, padx=5, pady=5)
+            self.content_label_list.append(content_label)
 
-            logging.debug(f'\n -- get CONTROL COLOR : { nav.control_map_color} --- \n')
+            # Create the title label
+            space = tk.Label(tab1, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
+            space.pack(side=tk.TOP, padx=5, pady=3)
 
-            # loop.close()
-        except Exception as e:
-            output_var.set(str(e))
+            # # Create a small label in the left upper corner
+            small_label = tk.Label(self.window, textvariable=self.count_var, font=("Arial", 14))
+            small_label.place(x=5, y=5)
 
-    
-        # nav_progress += 1
-        counter+=1
-        count_var.set(str(counter))
+        close_button = tk.Button(tab1, text=f"Close", command=lambda: self.close_window(), width=80, height=30)
+        close_button.pack(side=tk.BOTTOM, padx=5, pady=5)
 
-        time.sleep(60/30)
 
-def update_loops_old():
-    global is_nav_on
-    global nav_code
-    global nav_progress
-    global position
-    global orientation
-    global current_map
-    global current_task
-    global FONT_COLOR
-    global count_var
-    global output_var
-    global title_label
+        '''
+        TAB 2
+        '''
+        label_1 = tk.Label(tab2, text="Travel to station", font=("Arial", 14), bg='systemTransparent')
+        label_1.pack(side=tk.TOP, padx=5, pady=3)
 
-    current_map_name = ''
-    current_map_position = (-1, -1)
-    counter = 0
-    while running:
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        loop = asyncio.get_event_loop()
-        try:
-            # task = asyncio.ensure_future(conn.get_nav_status())
-            # r = loop.run_until_complete(task)
-            r = loop.run_until_complete(asyncio.wait_for(conn.get_nav_status(), 3))
-            print(f'-- get_nav_status : { r} \n')
-            if r and r[0]:
-                # if is_nav_on is ON
-                FONT_COLOR = 'black'
-                # FONT_COLOR = 'red'
-            else:
-                # FONT_COLOR = '#cccccc'
-                FONT_COLOR = 'red'
-            for c in content_label_list:
-                c.config(fg=FONT_COLOR)
+        map_name_entry_field_1 = tk.Entry(tab2, width=80)
+        map_name_entry_field_1.insert(0, f"Elements05") 
+        map_name_entry_field_1.pack(side=tk.TOP, padx=5, pady=5)
 
-            if r and r[1]:
-                current_map_name=r[1]
-                current_map.set(r[1])
-            else:
-                current_map.set('unknown')
+        task_name_entry_field_1 = tk.Entry(tab2, width=80)
+        task_name_entry_field_1.insert(0, f"station_name") 
+        task_name_entry_field_1.pack(side=tk.TOP, padx=5, pady=5)
 
-            if r and r[2]:
-                current_task.set(r[2])
+        submit_button_1 = tk.Button(tab2, text=f"Travel to station", command=lambda: self.goto_station(map_name_entry_field_1, task_name_entry_field_1), width=80)
+        submit_button_1.pack(side=tk.TOP, padx=5, pady=5)
+
+        space = tk.Label(tab2, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
+        space.pack(side=tk.TOP, padx=5, pady=3)
+
+
+        label_2 = tk.Label(tab2, text="Run task", font=("Arial", 14), bg='systemTransparent')
+        label_2.pack(side=tk.TOP, padx=5, pady=3)
+
+        map_name_entry_field_2 = tk.Entry(tab2, width=80)
+        map_name_entry_field_2.insert(0, f"Elements05") 
+        map_name_entry_field_2.pack(side=tk.TOP, padx=5, pady=5)
+
+        task_name_entry_field_2 = tk.Entry(tab2, width=80)
+        task_name_entry_field_2.insert(0, f" task_name") 
+        task_name_entry_field_2.pack(side=tk.TOP, padx=5, pady=5)
+
+        submit_button_2 = tk.Button(tab2, text=f"Run task on map", command=lambda: self.run_task(map_name_entry_field_2, task_name_entry_field_2), width=80)
+        submit_button_2.pack(side=tk.TOP, padx=5, pady=5)
+
+        space = tk.Label(tab2, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
+        space.pack(side=tk.TOP, padx=5, pady=3)
+
+        '''
+        TAB 3
+        '''
+        label_3 = tk.Label(tab3, text="Current map", font=("Arial", 14), bg='systemTransparent')
+        label_3.pack(side=tk.TOP, padx=5, pady=3)
+
+        map_name_entry_field_3 = tk.Entry(tab3, width=80)
+        map_name_entry_field_3.insert(0, f"Elements05") 
+        map_name_entry_field_3.pack(side=tk.TOP, padx=5, pady=5)
+
+        submit_button_3 = tk.Button(tab3, text=f"Submit current map", command=lambda: self.set_current_map(map_name_entry_field_3), width=80)
+        submit_button_3.pack(side=tk.TOP, padx=5, pady=5)
+
+        submit_button_toggle_nav = tk.Button(tab3, text=f" Nav On", command=lambda: self.toggle_nav(map_name_entry_field_3, 'start'), width=80)
+        submit_button_toggle_nav.pack(side=tk.TOP, padx=5, pady=5)
+
+        submit_button_toggle_nav = tk.Button(tab3, text=f" Nav Off", command=lambda: self.toggle_nav(map_name_entry_field_3, 'stop'), width=80)
+        submit_button_toggle_nav.pack(side=tk.TOP, padx=5, pady=5)
+
+
+        ''' Message box '''
+        # Create a frame for the message box
+        message_box_frame = tk.Frame(tab2, bg="light grey", bd=1, relief=tk.SOLID, width=390, height=50, padx=5, pady=5)
+        message_box_frame.pack(side=tk.BOTTOM, padx=5, pady=5)
+
+
+        # Create the message label
+        message_label = tk.Label(message_box_frame, textvariable=self.output_var, font=("Arial", 14), width=390, height=50)
+        message_label.pack()
+
+        close_button = tk.Button(tab2, text=f"Close", command=lambda: self.close_window(), width=80, height=30)
+        close_button.pack(side=tk.BOTTOM, padx=5, pady=5)
+
+
+    def close_window(self):
+        # with open('log', 'a+') as log_file:
+
+        #     log_file.write(f'\n<section closed at {datetime.now().strftime("%m/%d/%Y, %H:%M:%S")}>')
+        #     log_file.write('\n')
+        #     # log_file.write(outputs)
+        self.running = False
+        # update_thread.join()
+        # timer_thread.join()
+        self.window.destroy()
+
+
+    def timer(self):
+        count = 0
+        while self.running:
+            # print(f'# {count}')
+            count += 1 
+            time.sleep(1)
+
+
+    def update_loops(self):
+        # global is_nav_on
+        # global nav_code
+        # global nav_progress
+        # global position
+        # global orientation
+        # global current_map
+        # global current_task
+        # global FONT_COLOR
+        # global count_var
+        # global output_var
+        # global title_label
+
+        current_map_name = ''
+        current_map_position = (-1, -1)
+        counter = 0
+        while self.running:
+            # new_loop = asyncio.new_event_loop()
+            # asyncio.set_event_loop(new_loop)
+            # loop = asyncio.get_event_loop()
+            try:
                 
-            else:
-                current_task.set('unknown')
-            
-            r = loop.run_until_complete(asyncio.wait_for(conn.get_navi_code(), 0.5))
-            print(f'-- get_navi_code : { r} - {nav_code_label[(str(r))]}\n')
-            if r is not None:
-                nav_code.set(f'{nav_code_label[(str(r))]}')
-            else:
-                nav_code.set('-----')
-            # print(f' get_navi_code : { nav_code_label[(str(r))] } ')                
+                print(f'-- get_nav_status : { self.nav.nav_status} \n')
+                if self.nav.nav_status:
+                    # if is_nav_on is ON
+                    self.FONT_COLOR = 'black'
+                else:
+                    self.FONT_COLOR = 'red'
+                for c in self.content_label_list:
+                    c.config(fg=self.FONT_COLOR)
+
+                # if nav.current_map:
+                #     # current_map_name=r[1]
+                #     current_map.set(nav.current_map)
+                # else:
+                #     current_map.set('unknown')
+
+                if self.nav.current_map and self.nav.current_task:
+                    self.current_task.set(f'{self.nav.current_task} @ {self.nav.current_map}' )
+                else:
+                    self.current_task.set('unknown')
+                
+
+                logging.debug(f'-- get_navi_code : { self.nav.code } - {self.nav_code_label[(str(nav.code))]}\n')
+                if self.nav.code is not None:
+                    self.nav_code.set(f'{self.nav_code_label[(str(self.nav.code))]}')
+                else:
+                    self.nav_code.set('-----')            
 
 
-            r = loop.run_until_complete(asyncio.wait_for(conn.get_nav_progress(), 3))
-            # print(f' get_nav_progress : { r} \n')
-            if r is not None:
-                nav_progress.set(str(r))
-            else:
-                nav_progress.set('-----')
-            
-            
-            r = loop.run_until_complete(asyncio.wait_for(conn.get_bot_position(), 3))
-            print(f'-- get_bot_position : { r} ')
-            if r and r[0]:
-                current_map_position = (r[0], r[1])
-                position.set((str(r[0]).zfill(1) + ' ' + str(r[1]).zfill(1) + ' ' +  str(r[2]).zfill(1)))
-                orientation.set((str(r[3]).zfill(1) + ' ' + str(r[4]).zfill(1) + ' ' +  str(r[5]).zfill(1) + ' ' +  str(r[6]).zfill(1)))
-
-            
-            if current_map_name and current_map_position != (-1, -1):
-                color = get_scaled_control_map_color(current_map_name, current_map_position)
-            else:
-                color = "unknown"
-
-            print(f'\n --get control COLOR : { color} --- \n')
-            control_map_color.set(str(color)) 
-
-            # loop.close()
-        except Exception as e:
-            output_var.set(str(e))
-
-    
-        # nav_progress += 1
-        counter+=1
-        count_var.set(str(counter))
-
-        time.sleep(60/30)
+                if self.nav.progress is not None:
+                    self.nav_progress.set(str(self.nav.progress))
+                else:
+                    self.nav_progress.set('-----')
+                
+                
+                logging.debug(f'-- get_bot_position : { self.nav.px}, {self.nav.py} ')
+                if self.nav.px is not None and self.nav.py is not None and self.nav.py is not None and self.nav.ox is not None and self.nav.oy is not None and self.nav.oz is not None and self.nav.ow is not None:
+                    current_map_position = (self.nav.px, self.nav.py)
+                    self.position.set(str(   round(self.nav.px, 2),  round(self.nav.py, 2)  ))
+                    self.orientation.set(str(    (round(self.nav.ox, 2), round(self.nav.oy, 2),round(self.nav.oz, 2),round(self.nav.ow, 2))  ))
 
 
-def goto_station(map, station):
-    print(f'\n >>>>> Goto map : { map.get()} - station : {station.get()}')
-    # Travel to any stations(if they connect to the current map)
-    dest_map = map.get()
-    dest_station = station.get()
-    nav.travel_to_station(dest_map, dest_station, None)
+                    self.control_map_color.set(str(self.nav.control_map_color)) 
+
+                logging.debug(f'\n -- get CONTROL COLOR : { self.nav.control_map_color} --- \n')
+
+                # loop.close()
+            except Exception as e:
+                self.output_var.set(str(e))
+
+        
+            # nav_progress += 1
+            counter+=1
+            self.count_var.set(str(counter))
+
+            time.sleep(60/30)
 
 
-def run_task(map, task):
-    print(f'\n >>>>> Run task : {task.get()} on map : { map.get()}')
-    # Run a preset task on a map
-    nav.connection.run_list_task(map.get(), task.get())
-
-def set_current_map(map_field):
-    if map_field !='':
-        print(f'>>>>> Set current map to {map_field.get()}')
-        nav.current_map = map_field.get()
-    else:
-        messagebox.showinfo("Error",  "Current map cannot be empty") 
-
-def toggle_nav(map_field, action):
-    asyncio.run(nav.nav_action(map_field.get(), action))
-
-''' UI '''
-
-# Bind space bar key press event to the function
-# window.bind("<space>", space_bar_pressed)
-# window.bind("<space>", switch_page)
-
-# Initialize the output variable
-output = ""
-
-count_var = StringVar()
-output_var = StringVar()
-count_var.set(str(0))
-output_var.set('')
-
-tabControl = ttk.Notebook(window) 
-tab1 = ttk.Frame(tabControl, width=390, height=90)
-
-tab2 = ttk.Frame(tabControl, width=390, height=90) 
-tab3 = ttk.Frame(tabControl, width=390, height=90) 
-  
-tabControl.add(tab3, text ='    Bring up    ') 
-tabControl.add(tab2, text ='    Task    ') 
-tabControl.add(tab1, text ='    Info    ') 
-tabControl.pack(expand = 1, fill ="both") 
+    def goto_station(self, map, station):
+        print(f'\n >>>>> Goto map : { map.get()} - station : {station.get()}')
+        # Travel to any stations(if they connect to the current map)
+        dest_map = map.get()
+        dest_station = station.get()
+        self.nav.travel_to_station(dest_map, dest_station, None)
 
 
-'''
-TAB 1
-'''
+    def run_task(self, map, task):
+        print(f'\n >>>>> Run task : {task.get()} on map : { map.get()}')
+        # Run a preset task on a map
+        self.nav.connection.run_list_task(map.get(), task.get())
 
-content_label_list = []
-# card_stack_frame_p1 = tk.Frame(tab1, bg="white", width=390, height=240, padx=5, pady=5)
-# card_stack_frame_p1.pack(padx=5, pady=5)
+    def set_current_map(self, map_field):
+        if map_field !='':
+            print(f'>>>>> Set current map to {map_field.get()}')
+            self.nav.current_map = map_field.get()
+        else:
+            messagebox.showinfo("Error",  "Current map cannot be empty") 
 
-for i, title in enumerate(titles):
-
-    # Create the title label
-    title_label = tk.Label(tab1, text=title, font=("Arial", 12, "bold"), fg=FONT_COLOR, bg='systemTransparent')
-    title_label.pack(side=tk.TOP, padx=5, pady=2)
-
-
-    # Create the content label
-    content_label = tk.Label(tab1, textvariable=vars[i], font=("Arial", 26), bg='systemTransparent')
-    content_label.pack(side=tk.TOP, padx=5, pady=5)
-    content_label_list.append(content_label)
-
-     # Create the title label
-    space = tk.Label(tab1, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
-    space.pack(side=tk.TOP, padx=5, pady=3)
-
-# # Create a small label in the left upper corner
-small_label = tk.Label(window, textvariable=count_var, font=("Arial", 14))
-small_label.place(x=5, y=5)
-
-close_button = tk.Button(tab1, text=f"Close", command=lambda: close_window(), width=80, height=30)
-close_button.pack(side=tk.BOTTOM, padx=5, pady=5)
+    def toggle_nav(self, map_field, action):
+        asyncio.run(self.nav.nav_action(map_field.get(), action))
 
 
-'''
-TAB 2
-'''
-label_1 = tk.Label(tab2, text="Travel to station", font=("Arial", 14), bg='systemTransparent')
-label_1.pack(side=tk.TOP, padx=5, pady=3)
+if __name__ == '__main__':
 
-map_name_entry_field_1 = tk.Entry(tab2, width=80)
-map_name_entry_field_1.insert(0, f"Elements05") 
-map_name_entry_field_1.pack(side=tk.TOP, padx=5, pady=5)
-
-task_name_entry_field_1 = tk.Entry(tab2, width=80)
-task_name_entry_field_1.insert(0, f"station_name") 
-task_name_entry_field_1.pack(side=tk.TOP, padx=5, pady=5)
-
-submit_button_1 = tk.Button(tab2, text=f"Travel to station", command=lambda: goto_station(map_name_entry_field_1, task_name_entry_field_1), width=80)
-submit_button_1.pack(side=tk.TOP, padx=5, pady=5)
-
-space = tk.Label(tab2, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
-space.pack(side=tk.TOP, padx=5, pady=3)
-
-
-label_2 = tk.Label(tab2, text="Run task", font=("Arial", 14), bg='systemTransparent')
-label_2.pack(side=tk.TOP, padx=5, pady=3)
-
-map_name_entry_field_2 = tk.Entry(tab2, width=80)
-map_name_entry_field_2.insert(0, f"Elements05") 
-map_name_entry_field_2.pack(side=tk.TOP, padx=5, pady=5)
-
-task_name_entry_field_2 = tk.Entry(tab2, width=80)
-task_name_entry_field_2.insert(0, f" task_name") 
-task_name_entry_field_2.pack(side=tk.TOP, padx=5, pady=5)
-
-submit_button_2 = tk.Button(tab2, text=f"Run task on map", command=lambda: run_task(map_name_entry_field_2, task_name_entry_field_2), width=80)
-submit_button_2.pack(side=tk.TOP, padx=5, pady=5)
-
-space = tk.Label(tab2, text='', font=("Arial", 12, "bold"), bg='systemTransparent')
-space.pack(side=tk.TOP, padx=5, pady=3)
-
-'''
-TAB 3
-'''
-label_3 = tk.Label(tab3, text="Current map", font=("Arial", 14), bg='systemTransparent')
-label_3.pack(side=tk.TOP, padx=5, pady=3)
-
-map_name_entry_field_3 = tk.Entry(tab3, width=80)
-map_name_entry_field_3.insert(0, f"Elements05") 
-map_name_entry_field_3.pack(side=tk.TOP, padx=5, pady=5)
-
-submit_button_3 = tk.Button(tab3, text=f"Submit current map", command=lambda: set_current_map(map_name_entry_field_3), width=80)
-submit_button_3.pack(side=tk.TOP, padx=5, pady=5)
-
-submit_button_toggle_nav = tk.Button(tab3, text=f" Nav On", command=lambda: toggle_nav(map_name_entry_field_3, 'start'), width=80)
-submit_button_toggle_nav.pack(side=tk.TOP, padx=5, pady=5)
-
-submit_button_toggle_nav = tk.Button(tab3, text=f" Nav Off", command=lambda: toggle_nav(map_name_entry_field_3, 'stop'), width=80)
-submit_button_toggle_nav.pack(side=tk.TOP, padx=5, pady=5)
-
-
-''' Message box '''
-# Create a frame for the message box
-message_box_frame = tk.Frame(tab2, bg="light grey", bd=1, relief=tk.SOLID, width=390, height=50, padx=5, pady=5)
-message_box_frame.pack(side=tk.BOTTOM, padx=5, pady=5)
-
-
-# Create the message label
-message_label = tk.Label(message_box_frame, textvariable=output_var, font=("Arial", 14), width=390, height=50)
-message_label.pack()
-
-close_button = tk.Button(tab2, text=f"Close", command=lambda: close_window(), width=80, height=30)
-close_button.pack(side=tk.BOTTOM, padx=5, pady=5)
+    # nav = asyncio.run( Navigate._init_()) # coming from inoput instead
+    win = Monitor(nav=None, load_connection=False, load_controller=False )
 
 
 
@@ -454,17 +377,11 @@ close_button.pack(side=tk.BOTTOM, padx=5, pady=5)
 
 
 
-# Run the update loop
-# if not testing_ui:
-update_thread = Thread(target=update_loops)
-update_thread.start()
-timer_thread = Thread(target=timer)
-timer_thread.start()
 
 
 
-# Start the GUI event loop
-window.mainloop()
+
+
 
 
 

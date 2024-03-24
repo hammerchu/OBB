@@ -16,7 +16,10 @@ from datetime import datetime
 import numpy as np
 import queue
 
-import logging
+import coloredlogs, logging, verboselogs
+logger = verboselogs.VerboseLogger(__name__)
+# logger.basicConfig(level=logger.DEBUG)
+coloredlogs.install(level='VERBOSE')
 
 class Call(EventHandler): # require EventHandler for callbacks
     '''
@@ -94,18 +97,21 @@ class Call(EventHandler): # require EventHandler for callbacks
         '''If we want to save the video to disk'''
         if is_save_to_disk:
             
-            logging.info(f'Recording at {self.video_record_dims}')
+            logger.info(f':::::: Recording at {self.video_record_dims}')
 
-            # create the folder for today if its not exist yet
-            folder_today = os.path.join(self.record_video_path, datetime.now().strftime('%Y%m%d'))
-            if not os.path.exists(folder_today):
-                os.makedirs(folder_today)
-                
-            fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-            self._video = cv2.VideoWriter(f"{os.path.join(folder_today, datetime.now().strftime('%Y%m%d_%H%M%S'))}.mp4",fourcc, self.__framerate,self.videodims)
+            try:
+                # create the folder for today if its not exist yet
+                folder_today = os.path.join(self.record_video_path, datetime.now().strftime('%Y%m%d'))
+                if not os.path.exists(folder_today):
+                    os.makedirs(folder_today)
+                    
+                fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+                self._video = cv2.VideoWriter(f"{os.path.join(folder_today, datetime.now().strftime('%Y%m%d_%H%M%S'))}.mp4",fourcc, self.__framerate,self.videodims)
 
-            self.__thread_record_video = threading.Thread(target = self.record_video)
-            self.__thread_record_video.start()
+                self.__thread_record_video = threading.Thread(target = self.record_video)
+                self.__thread_record_video.start()
+            except Exception as e:
+                logger.error(':::::: Error', e)
 
     def create_camera(self):
         try:
@@ -114,7 +120,7 @@ class Call(EventHandler): # require EventHandler for callbacks
                                                    height = self.h,
                                                    color_format = "RGB")
         except Exception as e:
-            logging.error('Unable to cearte daily camera')
+            logger.error(':::::: Unable to cearte daily camera', e)
     
     def read_frames(self):
 
@@ -131,7 +137,7 @@ class Call(EventHandler): # require EventHandler for callbacks
             ret, frame = self.__cap.read()  # Read a frame from the video capture device
 
             if not ret:
-                logging.error("Unable to read frame from camera")
+                logger.error(":::::: Unable to read frame from camera")
                 break
 
             self.frame_queue.put(frame)  # Put the frame into the frame queue
@@ -146,7 +152,7 @@ class Call(EventHandler): # require EventHandler for callbacks
 
     def on_inputs_updated_(self, inputs, error):
         if error:
-            logging.error(f"Unable to updated inputs: {error}")
+            logger.error(f":::::: Unable to updated inputs: {error}")
             self.__app_error = error
         else:
             self.__app_inputs_updated = True
@@ -154,7 +160,7 @@ class Call(EventHandler): # require EventHandler for callbacks
 
     def on_joined(self, data, error):
         if error:
-            logging.error(f"Unable to join meeting: {error}")
+            logger.error(f":::::: Unable to join meeting: {error}")
             self.__app_error = error
         else:
             self.__app_joined = True
@@ -168,7 +174,7 @@ class Call(EventHandler): # require EventHandler for callbacks
         try:
             self.__thread_record_video.join()
         except:
-            logging.debug('video not recording to disk')
+            logger.debug(':::::: video not recording to disk')
 
     def leave(self):
         self.__app_quit = True
@@ -178,7 +184,7 @@ class Call(EventHandler): # require EventHandler for callbacks
         try:
             self.__thread_record_video.join()
         except:
-            logging.debug('video not recording to disk')
+            logger.debug(':::::: Video not recording to disk')
 
         self.__client.leave()
 
@@ -191,9 +197,9 @@ class Call(EventHandler): # require EventHandler for callbacks
 
     def send_image(self):
         self.__start_event.wait()
-        logging.debug('send_image')
+        logger.debug(':::::: Send_image')
         if self.__app_error:
-            logging.error(f"Unable to s-send audio!")
+            logger.error(f":::::: Unable to s-send audio!")
             return
 
         sleep_time = 1.0 / self.__framerate
@@ -238,11 +244,11 @@ class Call(EventHandler): # require EventHandler for callbacks
             if self._pil_image != None:
                 # record the frame to local drive 
                 pil_img = self._pil_image.resize(self.videodims)
-                logging.debug('valid frame')
+                logger.debug(':::::: Valid frame')
             else:
                 # record a black frame
                 pil_img = Image.new('RGB', self.videodims, color = 'darkred')
-                logging.debug('empty frame')
+                logger.debug(':::::: Empty frame')
 
             self._video.write(cv2.cvtColor(np.array(pil_img.copy()), cv2.COLOR_RGB2BGR))
 
@@ -373,7 +379,7 @@ def main():
         # app.run(args.meeting)
         app.run('https://onbotbot.daily.co/_test')
     except KeyboardInterrupt:
-        logging.info("Ctrl-C detected. Exiting!")
+        logger.info(":::::: Ctrl-C detected. Exiting!")
     finally:
         app.leave()
         
