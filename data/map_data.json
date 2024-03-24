@@ -143,15 +143,58 @@
             "stations" :[
                 {
                     "station_name" : "T003",
-                    "position_on_map" : [234, 1234]
+                    "position_on_map" : [234, 1234],
+                    "arrive_action" : ""
                 },
                 {
                     "station_name" : "T004",
-                    "position_on_map" : [534, 1534]
+                    "position_on_map" : [534, 1534],
+                    "arrive_action" : ""
                 },
                 {
                     "station_name" : "S503",
-                    "position_on_map" : [734, 1734]
+                    "position_on_map" : [734, 1734],
+                    "arrive_action" : ""
+                }
+            ] 
+        },
+        {
+            "map_name" : "Elements04",
+            "connect_to" : [
+                {
+                    "map_name": "Elements05"
+                }
+            ],
+            "stations" :[
+                {
+                    "station_name" : "Elements05",
+                    "position_on_map" : [17.7, -0.95],
+                    "arrive_action" : ""
+                },
+                {
+                    "station_name" : "O001",
+                    "position_on_map" : [0, 0],
+                    "arrive_action" : ""
+                }
+            ] 
+        },
+        {
+            "map_name" : "Elements05",
+            "connect_to" : [
+                {
+                    "map_name": "Elements04"
+                }
+            ],
+            "stations" :[
+                {
+                    "station_name" : "Elements04",
+                    "position_on_map" : [17.7, -0.95],
+                    "arrive_action" : ""
+                },
+                {
+                    "station_name" : "S501",
+                    "position_on_map" : [54.05, 0.3],
+                    "arrive_action" : ""
                 }
             ] 
         }

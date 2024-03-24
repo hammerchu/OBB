@@ -1,17 +1,25 @@
 #-*-coding:utf-8-*-
 from typing import Tuple, List, Dict # for python 3.8
+import coloredlogs, logging, verboselogs
+import math
 from threading import Thread
-import logging
-import asyncio
 import time
 from datetime import datetime
+
+import asyncio
+import nest_asyncio
 
 from bot.classes.connection import Connect
 from bot.classes.plan import Plan
 from bot.tools.utilities import get_scaled_control_map_color
 from bot.tools import profile, utilities
 
-logging.basicConfig(level=logging.INFO)
+nest_asyncio.apply()
+
+logger = verboselogs.VerboseLogger(__name__)
+# logger.basicConfig(level=logger.DEBUG)
+coloredlogs.install(level='VERBOSE')
+
 
 
 class Navigate():
@@ -22,6 +30,7 @@ class Navigate():
     '''
 
     def __init__(self):
+        logger.notice('Running __init__')
         self.id = profile.id
         self.model = profile.model
 
@@ -29,13 +38,14 @@ class Navigate():
             self.connection = Connect('192.168.1.102') # connect to Navis
             self.plan = Plan() # Goal list planner
         except Exception as e:
-            logging.error("Unable to connect", e)
+            logger.error("Unable to connect", e)
 
 
         self.map_station_steps = []
         self.current_map = None
         self.current_task = None
         self.current_task_index = 0
+        self.current_goal_position = None
         
         self.code = None # status code report from BOT
         self.is_on_nav = False # True if NAV is running
@@ -51,9 +61,12 @@ class Navigate():
         self.ox = None
         self.oy = None
         self.oz = None
-        self.oz = None
+        self.ow = None
 
         self.control_map_color = (-1, -1, -1, -1)
+
+
+        self.dist_from_goal = None
 
         self.gps_status = None
         self.gps_lat = -1
@@ -64,9 +77,18 @@ class Navigate():
         '''
         Check and update nav info, run at startup
         '''
+        logger.notice('----- Running bring up -----')
+
         r = await self.connection.get_nav_status()
-        if r and r[0]: # r[0] -> nav_status  
+        if r: # r[0] -> nav_status  
             self.nav_mode = True # bot nav mode is ON
+            self.nav_status = r[0]
+            self.current_map = r[1]
+            self.current_task = r[2]
+            self.is_on_nav = True
+            print(f' NAV: is_on_nav : { self.is_on_nav} ')
+            print(f' NAV: current_map : { self.current_map} ')
+            print(f' NAV: current_task : { self.current_task} ')
         else:
             # start nav mode....
             
@@ -76,18 +98,21 @@ class Navigate():
         time.sleep(2)
 
         # Run the nav tracking thread
-        self.update_nav_thread = Thread(target = self.update_nav)
-        self.update_nav_thread.run()
-        logging.info('===== Run Nav bringup =====')
+        # self.update_nav_thread = Thread(target = self.update_nav)
+        self.update_nav_thread = Thread(target = self.update_nav_wraper)
+        self.track_nav_thread = Thread(target = self.track_nav)
+        self.track_nav_thread.start()
+        self.update_nav_thread.start()
     
     @classmethod
     async def _init_(cls):
+        logger.notice('Running _init_')
         self = cls()
         await self.nav_bringup()
         return self
 
     
-    def travel_to_station(self, dest_map, dest_station):
+    def travel_to_station(self, dest_map, dest_station, start=None):
         '''
         Travel to dest station from the BOT's current position based on the shortest map-steps
 
@@ -98,9 +123,14 @@ class Navigate():
         # Preparation
         self.is_arrived_dest = False
         self.is_on_task = True
+        
+        if not start:
+            current_map = self.current_map
 
         # Get the steps for the new task
-        self.map_station_steps = self.plan.get_map_station_steps(self.current_map, dest_map, dest_station)
+        self.map_station_steps = self.plan.get_map_station_steps(current_map, dest_map, dest_station)
+
+        print(f'\n ----- map_station_steps {self.map_station_steps} -----\n' )
         
         # Launch the NAV on the steps above
         if self.map_station_steps:
@@ -120,46 +150,69 @@ class Navigate():
         '''
         index = 0
         while True:
-            if self.is_on_task and self.map_station_steps and self.current_task_index >= len(self.map_station_steps) : # if BOT is on a task
-                
-                if self.code == 3 and self.is_arrived_dest: # if BOT arrived at dest # 3:任务完成
-                    '''
-                    Arriving at dest station  # 3:任务完成
-                    '''
-                    logging.info(f'NAV: Task Completed')
-                    self.current_task_index = 0 # reset key variable
-                    # Ask HUBS for the next task
+            print(f'\n ****** TRACK NAV ****** ') 
+            print('is_on_nav', self.is_on_nav)
+            print('map_station_steps', self.map_station_steps )
+            print('current_task_index', self.current_task_index)
 
-                elif self.code == 3 and self.map_station_steps and self.current_task_index < len(self.map_station_steps) : 
-                    '''
-                    Arriving goal of each step  # 3:任务完成
-                    '''
-                    # update the task index
-                    logging.info(f'NAV: arrived at goal {self.current_task_index} - {self.map_station_steps[self.current_task_index]} on {self.current_map}')
-                    self.current_task_index += 1
-                    # set the current_map to the next map
-                    self.current_map = self.map_station_steps[self.current_task_index]['goal_map_name']
-                    # launch travel to the next step-goal
-                    logging.info(f'NAV: launching at goal {self.current_task_index} - {self.map_station_steps[self.current_task_index]} on {self.current_map}')
-                    self.travel_to(self.map_station_steps[self.current_task_index]['goal_station'])
+            print(f'\n') 
+            # logger.info(f'\n ****** TRACK NAV ****** ') 
+            # logger.info(self.is_on_nav)
+            # logger.info(self.map_station_steps )
+            # logger.info(self.current_task_index)
+            # logger.info(self.map_station_steps)
+            # logger.info(f'\n') 
+            if self.is_on_nav:
+
+                # elif self.dist_from_goal and self.dist_from_goal < 0.3  and self.map_station_steps and self.current_task_index < len(self.map_station_steps) : 
+                if self.dist_from_goal and self.dist_from_goal < 0.3 and self.map_station_steps: 
+                    if self.current_task_index + 1 < len(self.map_station_steps):
+                        '''
+                        Arriving goal of each step  # 3:任务完成
+                        '''
+                        print(f'****** Arrived at step goal {self.current_task_index} - {self.map_station_steps[self.current_task_index]} on {self.current_map}')
+                        logger.success(f'****** Arrived at step goal {self.current_task_index} - {self.map_station_steps[self.current_task_index]} on {self.current_map}')
+                        
+                        # update the task index 
+                        self.current_task_index += 1
+
+                        # set the current_map to the next map
+                        self.current_map = self.map_station_steps[self.current_task_index]['goal_map_name']
+                        
+                        # launch travel to the next step-goal
+                        print(f'****** launching at goal {self.current_task_index} - {self.map_station_steps[self.current_task_index]} on {self.current_map}')
+                        logger.success(f'****** launching at goal {self.current_task_index} - {self.map_station_steps[self.current_task_index]} on {self.current_map}')
+                        self.travel_to(self.map_station_steps[self.current_task_index]['goal_station'])
+                    else:
+                        '''
+                        Arriving at the last station  # 3:任务完成
+                        '''
+                        print('****** Station arrived ******\n')
+                        logger.success('****** Station arrived ******\n')
+                        self.is_arrived_dest = True
+                        self.current_task_index = 0 # reset key variable
+                        # Ask HUBS for the next task
+
                 
                 elif self.code == 1: # 1:正在执行任务
                     if index % 3 == 0:
-                        logging.info(f'NAV {self.nav_code2msg(self.code)} - progress: { str(self.progress).zfill(2)} of task{self.current_task_index}/{len(self.map_station_steps)}' )
+                        print(f'****** {self.nav_code2msg(self.code)} - progress: { str(self.progress).zfill(2)} of task{self.current_task_index}/{len(self.map_station_steps)} ' )
+                        logger.success(f'****** {self.nav_code2msg(self.code)} - progress: { str(self.progress).zfill(2)} of task{self.current_task_index}/{len(self.map_station_steps)} ' )
                     else:
                         pass
 
                 elif self.code == 7 or self.code == 8: # 7:异常状态 or 8:任务异常暂停
-                    logging.info(f'NAV: {self.nav_code2msg(self.code)}  task{self.current_task_index}/{len(self.map_station_steps)}' )
+                    print(f'****** WARNING - Error - {self.nav_code2msg(self.code)}  task{self.current_task_index}/{len(self.map_station_steps)}' )
+                    logger.success(f'****** WARNING - Error - {self.nav_code2msg(self.code)}  task{self.current_task_index}/{len(self.map_station_steps)}' )
                     # Ask for instruction from HUBS
 
 
                 elif self.code == 6: # 6:定位丢失
-                    logging.info(f'NAV: {self.nav_code2msg(self.code)}  task{self.current_task_index}/{len(self.map_station_steps)}' )
+                    logger.success(f'****** WARNING - Localization failed - {self.nav_code2msg(self.code)}  task{self.current_task_index}/{len(self.map_station_steps)}' )
                     # Ask for help from HUBS
             else:
                 if index % 3 == 0:
-                    logging.info(f'NAV: no task to track')
+                    logger.success(f'****** No task to track')
 
             time.sleep(60/self.TRACK_FREQ)
             index += 1
@@ -172,25 +225,33 @@ class Navigate():
 
         if success, updates is_on_task to True
         '''
+        print(f' >>>>> TRAVEL TO >>>>>') 
         # make sure dest station is on the current_map
         if not self.plan.is_station_on_map(self.current_map, dest_station):
-            logging.error('NAV: Destination not on the current_map')
+            logger.verbose('>>>>>  Destination not on the current_map')
+            return None
         else:
             task_name = f'{datetime.now().strftime("%Y_%m_%d_%H_%M_%S")}-{self.current_map}-{dest_station}'
             dest_station_position = self.plan.get_station_position(self.current_map, dest_station)
+            self.current_goal_position = dest_station_position
+            print(f'>>>>> dest_station_position : { self.current_goal_position} ')
+            logger.verbose(f'>>>>> dest_station_position : { self.current_goal_position} ')
             if self.current_map:
                 # add a new task to the BOT
-                r_task = self.connection.set_list_task(self.current_map, task_name, dest_station_position)
+                r_task = self.connection.set_list_task(self.current_map, task_name, [dest_station_position])
                 if r_task:
                     # Run the new task
                     r_run = self.connection.run_list_task(self.current_map, task_name)
                     if r_run:
                         self.is_on_task = True
+                        return True
                     else:
-                        logging.error('Failed to run_list_task')
+                        logger.error('Failed to run_list_task')
                         self.is_on_task = False
+                        return None
                 else:
-                    logging.error('Failed to set_list_task')
+                    logger.error('Failed to set_list_task')
+                    return None
                 
 
 
@@ -214,6 +275,11 @@ class Navigate():
     '''
     Update NAV
     '''
+
+    def update_nav_wraper(self):
+        asyncio.run(self.update_nav())
+       
+
     async def update_nav(self):
         '''
         Running in a separate Thread to update:\n
@@ -227,16 +293,29 @@ class Navigate():
         index = 0
         while True:
             if self.is_on_nav:
-                if index % 5 == 0:
-                    logging.info('NAV: updates')
+                if index % 1 == 0:
+                    print(f'\n===== NAV =====')
+                    print(f'=== nav_code: {self.code}')
+                    print(f'=== current_map: {self.current_map}')
+                    print(f'=== current_task: {self.current_task}')
+                    print(f'=== current_goal: {self.current_goal_position}')
+                    print(f'=== position: {self.px}, {self.py}')
+                    print(f'=== progress: {self.progress}')
+                    print(f'=== dist from goal: {self.dist_from_goal}')
+
+                    # logger.info('NAV: updates')
                 await self.update_nav_code_and_current_map()
-                await self.update_position_in_current_map()
                 await self.update_progress()
+                await self.update_position_in_current_map()
                 self.update_control_map_color()
+
+                self.dist_from_goal = self.dist_btw_positions((self.px, self.py), self.current_goal_position)
+
             else:
                 pass
                
             time.sleep(60/self.UPDATE_FREQ)
+            index += 1
     
     async def update_nav_status(self):
         '''
@@ -247,50 +326,55 @@ class Navigate():
             if resp:
                 self.nav_status, _, self.current_task = resp
             else:
-                logging.info('WARNING - unable to update current BOT status, map and task')
+                logger.info('WARNING - unable to update current BOT status, map and task')
         else:
-            logging.info(f'{self.id} is not in navigation mode')
+            logger.info(f'{self.id} is not in navigation mode')
     
+
     async def update_progress(self):
         '''
         Get the bot's current position in the current map
         '''
-        if self.current_map and await self.connection.get_nav_localization():
+        if self.is_on_nav:
             resp = await self.connection.get_nav_progress()
+            print(f'=== update_progress : { resp} ')
             if resp:
                 self.progress = resp
             else:
-                logging.info('WARNING - unable to update current BOT position on map')
+                logger.info('WARNING - unable to update current BOT position on map')
         else:
-            logging.info(f'{self.id} is not in navigation mode')
+            logger.info(f'{self.id} is not in navigation mode')
+
 
     async def update_position_in_current_map(self):
         '''
         Get the bot's current position in the current map
         '''
-        if self.current_map and await self.connection.get_nav_localization():
+        if self.is_on_nav:
             resp = await self.connection.get_bot_position()
+            print(f'=== update_position_in_current_map : { resp} ')
             if resp:
                 self.px, self.py, self.pz, self.ox, self.oy, self.oz, self.oz = resp
             else:
-                logging.info('WARNING - unable to update current BOT position on map')
+                logger.info('WARNING - unable to update current BOT position on map')
         else:
-            logging.info(f'{self.id} is not in navigation mode')
+            logger.info(f'{self.id} is not in navigation mode')
 
 
     def update_control_map_color(self):
         '''
         Takes an image_position and a map_name and return a rgb color for that image_position
         '''
-        if self.current_map:
+        if self.current_map and self.px != None  and self.py != None:
             resp = get_scaled_control_map_color(self.current_map, (self.px, self.py))
             if resp:
+                print(f'=== update_control_map_color : { resp} ')
                 self.control_map_color = resp
                 
             else:
-                logging.info('WARNING - map_color not updated')
+                logger.info('WARNING - map_color not updated')
         else:
-            logging.info('WARNING - current_map unavailable')
+            logger.info('WARNING - current_map unavailable')
 
     
     async def update_nav_code_and_current_map(self):
@@ -298,17 +382,18 @@ class Navigate():
         Check and update nav status code - valid when nav mode is ON
         '''
         resp = await self.connection.get_navi_code()
-        if resp:
-            status_code, map_name, text = resp # type: ignore
+        print(f'=== update_nav_code_and_current_map : { resp} ')
+        if resp!= None:
+            status_code = resp # type: ignore
             try:
                 self.code = int(status_code)
-                self.current_map = map_name
-                logging.debug(f' self.nav_code : { self.code} ')
+                # self.current_map = map_name
+                logger.debug(f' self.nav_code : { self.code} ')
             except Exception as e:
-                logging.error(e)
+                logger.error(e)
 
         else:
-            logging.error('NAV: Unable to obtain nav code')
+            logger.error('NAV: Unable to obtain nav code')
 
     '''
     Utilities
@@ -328,10 +413,18 @@ class Navigate():
         }
         return nav_code_label[str(code)]
 
-
+    def dist_btw_positions(self, position1, position2):
+        '''
+        '''
+        x_sq = (position1[0] - position2[0])**2 
+        y_sq = (position1[1] - position2[1])**2
+        distance = math.sqrt(x_sq + y_sq)
+        return distance
 
 async def main():
      nav = await Navigate._init_()
+
+     nav.travel_to_station('T005', 'S503', 'T001' )
      return 
 
 
