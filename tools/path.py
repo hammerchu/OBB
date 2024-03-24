@@ -1,22 +1,25 @@
 import json
 from bot.tools import profile
 import os
-# '''
-# Storing predefined goal_list for all the start_station & end_station_pairs
+'''
 
-# e.g. 
+==========OBSELED, integrated into Plan Class=========
 
-#         T3-----------<
-#         /              \
-# T1 --<          T4 --- T5
-#         \      /
-#         T2 --<
+Return a goal_list for all the start_station & end_station_pairs
+
+e.g. 
+
+        T3-----------<
+        /              \
+T1 --<          T4 --- T5
+        \      /
+        T2 --<
                
         
 
-# from T1 to T4 : T1 -> T2 -> T4
-# from T1 to T5 : T1 -> T2 -> T4 -> T5 or better, T1 -> T3 -> T5
-# '''
+from T1 to T4 : T1 -> T2 -> T4
+from T1 to T5 : T1 -> T2 -> T4 -> T5 or better, T1 -> T3 -> T5
+'''
 
 
 map_connection_data = json.load(open(profile.MAP_DATA_JSON , 'r'))['map_connection_data']
@@ -26,15 +29,15 @@ def get_station_data(station):
     # list -> dict as the input iterator from map_connection_data is a list
     return dict(list(filter(lambda x: x['map_name'] == station, map_connection_data))[0])
 
-def find_path(start_station, dest_sdtation):
+# def find_path(start_station, dest_sdtation):
     
-    start_map_dict = get_station_data(start_station)
+#     start_map_dict = get_station_data(start_station)
 
-    for conn_map in start_map_dict['connect_to']:
+#     for conn_map in start_map_dict['connect_to']:
         
-        print(conn_map['map_name'])
+#         print(conn_map['map_name'])
 
-def find_steps(start_map, dest_map, visited=[]):
+def find_first_steps(start_map, dest_map, visited=[]):
     '''
     Recursivly finding a path from start to end
     '''
@@ -56,7 +59,7 @@ def find_steps(start_map, dest_map, visited=[]):
                     # print(f' visited : { visited} ')
                     
                     # Recursively call the find_steps function with the connected map as the new starting map
-                    steps = find_steps(connected_map['map_name'], dest_map, visited)
+                    steps = find_first_steps(connected_map['map_name'], dest_map, visited)
                     # If a non-empty path is found, append the starting map to the beginning of the steps and return the steps
                     if steps:
                         print('B', [start_map] + steps)
@@ -89,7 +92,7 @@ def find_shortest_steps(start_map, dest_map, visited=[], shortest_path=None):
                     visited.append(start_map)
                     # Recursively call the find_steps function with the connected map as the new starting map
                     steps = find_shortest_steps(connected_map['map_name'], dest_map, visited, shortest_path)
-                    print('# ', steps)
+                    logging.debug('# ', steps)
                     # If a non-empty path is found, check if it is shorter than the current shortest path
                     if steps:
                         # compare all the possible path and keep the one with less steps

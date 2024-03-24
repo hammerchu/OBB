@@ -75,16 +75,16 @@ class RobotControlCenter:
         while True:
 
             # if self.nav and self.call and self.plan and self.nav.is_navigating:
-            if self.nav and self.plan and self.nav.is_navigating:
-                logging.debug('Nav code: ', self.nav.nav_code)
-                if not is_asking_help and self.nav.nav_code and self.nav.nav_code >= 6:
+            if self.nav and self.plan and self.nav.is_on_nav:
+                logging.debug('Nav code: ', self.nav.code)
+                if not is_asking_help and self.nav.code and self.nav.code >= 6:
                     '''ask for help from HUBS'''
-                    logging.info('Stuck: ', self.nav.nav_code)
+                    logging.info('Stuck: ', self.nav.code)
                     # self.call.stuck_message(self.nav.nav_code)
                     is_asking_help = True
-                elif is_asking_help and self.nav.nav_code and self.nav.nav_code < 6:
+                elif is_asking_help and self.nav.code and self.nav.code < 6:
                     '''recovered from stuck'''
-                    logging.info('Recovered from stuck: ', self.nav.nav_code)
+                    logging.info('Recovered from stuck: ', self.nav.code)
                     # self.call.recovered_message(self.nav.nav_code)
                     is_asking_help = False
             else:

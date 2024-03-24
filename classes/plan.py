@@ -234,15 +234,15 @@ if __name__ == '__main__':
     # resp = plan.get_goal_station_on_current_map( start, end)
     # print(f'Goal station from {start} to {end}: {resp}')
 
-    # start, end = 'T001', 'T005' 
-    # big_plan = plan.get_map_station_steps('T001', 'T005', 'S503' )
-    # print(f'Big_plan from {start} to {end}: { big_plan} ')
+    start_map, end_map, end_station = 'Elements04', 'Elements05', 'S501'
+    big_plan = plan.get_map_station_steps(start_map, end_map, end_station )
+    print(f'Big_plan from {start_map} to {end_map}: { big_plan} ')
 
     # resp = plan.get_station_position('T004', 'S403')
     # print(resp)
 
-    resp = plan.is_station_on_map('T004', 'S405')
-    print(resp)
+    # resp = plan.is_station_on_map('Elements04', 'S501')
+    # print(resp)
 
 
 

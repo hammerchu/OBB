@@ -19,7 +19,9 @@ import time
 from threading import Thread
 from bot.classes.connection import Connect
 
-class PS4Controller(object):
+import asyncio
+
+class DS4(object):
     """Class representing the PS4 controller. Pretty straightforward functionality.
     
     self.button_labels = {
@@ -60,16 +62,20 @@ class PS4Controller(object):
 
     def init(self):
         """Initialize the joystick components"""
-        
+        print('\nrunning init\n')
         pygame.init()
         pygame.joystick.init()
         self.controller = pygame.joystick.Joystick(0)
         self.controller.init()
 
-        self.conn = Connect('192.168.1.102')
+        self.connect = True
 
         self.running = True
         self.debug = True
+
+        self.speed_factor = 1
+        self.linear_x = -1
+        self.angular_x = -1
 
         self.button_labels = {
             '0':'cross',
@@ -99,11 +105,39 @@ class PS4Controller(object):
             '4':'L2',
             '5':'R2',
         }
-        listen_thread = Thread(target=self.listen).run()
+  
+        if self.connect:
+            self.connect_to_bot()
+        listen_thread = Thread(target=self.listen_wraper).start()
 
+    # @classmethod
+    # async def _init_(cls):
+    #     self = cls()
 
+    #     print('\nrunning init\n')
+    #     pygame.init()
+    #     pygame.joystick.init()
+    #     self.controller = pygame.joystick.Joystick(0)
+    #     self.controller.init()
 
-    def listen(self):
+    #     self.connect = False
+
+    #     self.running = True
+    #     self.debug = True
+
+    #     if self.connect:
+    #         self.connect_to_bot()
+    #     listen_thread = Thread(target=self.listen_wraper).start()
+    #     return self
+    
+
+    def connect_to_bot(self):
+        self.conn = Connect('192.168.1.102')
+
+    def listen_wraper(self):
+        asyncio.run(self.listen())
+
+    async def listen(self):
         """Listen for events to happen"""
         
         if not self.axis_data:
@@ -119,12 +153,13 @@ class PS4Controller(object):
             for i in range(self.controller.get_numhats()):
                 self.hat_data[i] = (0, 0)
 
-        ready_to_quit = False
         fps = -1
         while self.running:
             then = time.time()
             for event in pygame.event.get():
                 if event.type == pygame.JOYAXISMOTION:
+                    # self.axis_data[1] = 0
+                    # self.axis_data[2] = 0
                     self.axis_data[event.axis] = round(event.value,2)
                 elif event.type == pygame.JOYBUTTONDOWN:
                     self.button_data[event.button] = True
@@ -135,15 +170,39 @@ class PS4Controller(object):
 
                 # Insert your code on what you would like to happen for each event here!
                 # In the current setup, I have the state simply printing out to the screen.
+
                 
                 if self.debug:
                     os.system('clear')
-                    pprint.pprint(self.button_data)
-                    pprint.pprint(self.axis_data)
-                    pprint.pprint(self.hat_data)
+
+                    
+
+                    pprint.pprint(f'B {self.button_data}')
+
+                    for idx, k in enumerate(self.axis_data.values()):
+                        pprint.pprint(f'{idx} {k}')
+
+                    pprint.pprint(f'A {self.axis_data}')
+                    # pprint.pprint(self.hat_data)
+                    pprint.pprint(f'H {self.hat_data}')
+                    # await self.cmd_vel()
+                    if self.connect:
+                        await self.cmd_vel()
+                    try:
+                        if self.button_data and self.button_data[10] == True:
+                            self.speed_factor = 0.5
+                        elif self.button_data and self.button_data[9] == True:
+                            self.speed_factor = 2
+                        else:
+                            self.speed_factor = 1
+                    except:
+                        pass
+                    pprint.pprint(f'S {(self.speed_factor)}')
+
+                    pprint.pprint(f'vel {(self.linear_x, self.angular_x)}')
+
                     pprint.pprint(fps)
 
-                
 
                 if self.button_data[4] == True:
                     self.running = False
@@ -151,6 +210,8 @@ class PS4Controller(object):
 
             now = time.time()
             fps = 1/(now - then )
+            fps += 1
+            # time.sleep(1/30)
 
 
     async def cmd_vel(self):
@@ -158,22 +219,43 @@ class PS4Controller(object):
         Submit vel instruction to BOT
         '''
         hat_thread = 0.1
-        if self.hat_data:
-            if -1 * hat_thread < self.hat_data[1] < hat_thread:
-                linear_x = self.hat_data[1]
-            else:
-                linear_x = 0
-            if -1 * hat_thread < self.hat_data[2] < hat_thread:
-                angular_x = self.hat_data[2]
-            else:
-                angular_x = 0
-                
-            await self.conn.cmd_vel(linear_x, angular_x)
+        is_stopped = False
+
+        try:
+            if self.axis_data and self.axis_data[1]:
+                # print('self.linear_x', self.hat_data[1])
+                if -1 * hat_thread < self.axis_data[1] < hat_thread:
+                    self.linear_x = 0
+                else:
+                    self.linear_x = -1 * self.axis_data[1]* self.speed_factor 
+            if self.axis_data and self.axis_data[2]:
+                if -1 * hat_thread < self.axis_data[2] < hat_thread:
+                    self.angular_x = 0
+                else:
+                    self.angular_x = -1 * self.axis_data[2] * self.speed_factor 
+            
+            if self.linear_x != 0 or self.angular_x != 0:
+                await self.conn.cmd_vel(self.linear_x, self.angular_x)
+                is_stopped = False
+            elif self.linear_x == 0 or self.angular_x == 0 and not is_stopped:
+                await self.conn.cmd_vel(self.linear_x, self.angular_x)
+                is_stopped = True
+            elif self.linear_x == 0 or self.angular_x == 0 and is_stopped:
+                pass
 
 
+        except KeyError as e:
+            self.angular_x = 99
+            print('error', e)
+
+# async def ds4_main():
+#     controller = await DS4._init_()
+#     return 
 
 if __name__ == "__main__":
-    ps4 = PS4Controller()
+    ps4 = DS4()
     ps4.init()
-    # ps4.listen()
+    
+    # asyncio.run(ds4_main())
+
 

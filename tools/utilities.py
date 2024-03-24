@@ -97,7 +97,7 @@ def get_control_map_color(map_name:str, position:Tuple[float, float]) -> Union[T
 
 def get_scaled_control_map_color(map_name:str, position:Tuple[float, float]) -> Union[Tuple[int, int, int, int], None]:
     '''
-    return pixel color of a control map of a map
+    return pixel color of a control map by its map position
     '''
     scale_factor = 5
     result = None
@@ -110,7 +110,6 @@ def get_scaled_control_map_color(map_name:str, position:Tuple[float, float]) -> 
         print(f' x, y : { resp} - {(int(png_x/scale_factor), int(png_y/scale_factor))}')
         result = map_image.getpixel((int(png_x/scale_factor), int(png_y/scale_factor)))
     return result
-
 
 
 

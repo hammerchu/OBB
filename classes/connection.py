@@ -13,8 +13,12 @@ import websockets
 from asyncio import create_task, gather, sleep, run
 
 
-logging.basicConfig(level=logging.DEBUG)
-logging.getLogger("asyncio").setLevel(logging.WARNING)
+logging.basicConfig(level=logging.ERROR)
+# logging.getLogger("asyncio").setLevel(logging.WARNING)
+# logging.getLogger('asyncio').setLevel(logging.ERROR)
+# logging.getLogger('asyncio.coroutines').setLevel(logging.ERROR)
+logging.getLogger('websockets.server').setLevel(logging.ERROR)
+logging.getLogger('websockets.protocol').setLevel(logging.ERROR)
 
 class Connect():
     '''
@@ -41,6 +45,7 @@ class Connect():
         logging.debug(f' Token : { self.token} ')
         logging.info(f' Dev ver: {self.get_dev_ver()}\n\n')
 
+        
         '''Test'''
         # task_points = [(0,0,0), (3, 0, 180) , (10, 0, 0)]
         # map_name='Elements04'
@@ -59,16 +64,17 @@ class Connect():
 
     def send_data_http(self, url, action, header, data) -> Union[Dict, None]:
         if action == 'get':
-            resp = requests.get(url, headers=header, data=data)
+            resp = requests.get(url, headers=header, data=data, timeout=3)
             logging.debug(f'HTTP GET RETURN MSG: {resp.text}\n')
             if resp:
                 return resp.json()
             else:
                 logging.error(f'Failed to GET from {url}')
                 return None
+            
         elif action == 'post':
             # headers = {"Content-type": "application/json"}
-            resp = requests.post(url, headers=header, data=json.dumps(data))
+            resp = requests.post(url, headers=header, data=json.dumps(data), timeout=3)
             resp.encoding = 'UTF-8' # or resp.apparent_encoding
             logging.debug(f'\nHTTP POST RETURN MSG v1.1: {resp.content}\n')
             if resp:
@@ -89,13 +95,12 @@ class Connect():
                 await websocket.send(bytes(json.dumps(message, ensure_ascii=False).encode("utf-8")))
                 # resp = asyncio.wait_for(websocket.recv(), timeout=self.timeout_limit)
                 resp = await websocket.recv()
+                # print(f' WS resp : { resp} \n')
                 if resp:
                     return json.loads(str(resp))
                 else:
-                    logging.info('------ A')
                     return None
             except:
-                logging.info('----- B')
                 return None
     
 
@@ -246,8 +251,10 @@ class Connect():
             return None
 
 
-    def set_list_task(self, map_name:str, task_name:str, points:List[Tuple[float, float, float]], speed:float=2):
+    def set_list_task(self, map_name:str, task_name:str, points:List[List[float]], speed:float=2):
         '''
+        Create a task on a map
+
         file:///Users/hammerchu/Downloads/user_api(1).html#设置某个地图的某个任务信息
 
         points -> List of tuple(x, y, theta)
@@ -264,7 +271,8 @@ class Connect():
                 "position": {
                     "x": point[0],
                     "y": point[1],
-                    "theta": point[2]
+                    # "theta": point[2]
+                    "theta": 0
                 },
                 "cpx": 0,
                 "cpy": 0
@@ -298,6 +306,10 @@ class Connect():
             return None
 
     def run_list_task(self, map_name, task_name):
+        '''
+        Run a preset task on a map
+
+        '''
 
         payload = {
             "mapName": map_name, 
@@ -336,6 +348,10 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
+            
             if resp and resp['msg']:
                 RTK_status = resp['msg']['RTK_status']
                 lidar_status = resp['msg']['lidar_status']
@@ -363,7 +379,10 @@ class Connect():
             "type": "tools_msgs/GnssStatus"
         }
         try:
-            resp = await self.send_data_ws(message)
+            # resp = await self.send_data_ws(message)
+            loop = asyncio.get_event_loop()
+            resp = loop.run_until_complete(self.send_data_ws(message))
+            loop.close()
             if resp and resp['msg']:
                 status = resp['msg']['nav']
                 name = resp['msg']['name']
@@ -377,21 +396,10 @@ class Connect():
             logging.error(e)
             return None
     
-    def ws_test(self):
-        message = {
-            "op":"subscribe",
-            "topic": "/slam_status",
-            "type": "tools_msgs/slamStatus"
-        }
-
-        loop = asyncio.get_event_loop()
-        r = loop.run_until_complete(self.send_data_ws(message))
-        loop.close()
-        print('feedback', r)
 
     async def get_nav_status(self) -> Union[Tuple[bool, str, str], None]:
         '''
-        Return\n
+        Return nav status, map and task info\n
         nav_status -> True if bot's nav mode is ON\n
         map_name -> current map, return '' if no active map\n
         task_name -> current task, return '' if no active task\n
@@ -402,8 +410,12 @@ class Connect():
             "type": "tools_msgs/slamStatus"
         }
         try:
+            # resp = await self.send_data_ws(message)
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
             resp = await self.send_data_ws(message)
-            if resp and resp['msg']['nav']['state']:
+            if resp and resp['msg']['nav']:
                 nav_status = resp['msg']['nav']['state']
                 map_name = resp['msg']['nav']['name']
                 task_name = resp['msg']['nav']['task']
@@ -417,7 +429,7 @@ class Connect():
             return None
         
 
-    async def start_nav(self) -> Union[bool, None]: # type: ignore
+    async def start_nav(self, map_name) -> Union[bool, None]: # type: ignore
         '''
         file:///Users/hammerchu/Downloads/user_api(1).html#启动关闭导航
         '''
@@ -426,15 +438,19 @@ class Connect():
             "service": "/input/op",
             "type":"tools_msgs/input",
             "args": {
-                "file_name": "",
+                "file_name": map_name,
                 "op_type":"start",
-                "id_type":"follow_line"
+                "id_type":"navigation"
             }
         }
         try:
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
             resp = await self.send_data_ws(message)
-            if resp and resp['value']['success'] :
-                is_success = resp['value']['success'] 
+            print(f' resp : { resp} ')
+            if resp and resp['values']:
+                is_success = resp['values']['success'] 
                 return is_success
             else:
                 logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
@@ -472,9 +488,6 @@ class Connect():
             resp = await self.send_data_ws(message)
             if resp and resp['msg']:
                 status = resp['msg']['status'] # e.g. 1 : 正在执行任务
-                # map_name = resp['msg']['map_name']
-                # text = resp['msg']['text']
-                # return (status, map_name, text)
                 return status
             else:
                 logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
@@ -498,6 +511,9 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
             if resp and resp['msg']['poses']:
                 path = resp['msg']['poses']
                 return path
@@ -523,11 +539,12 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
-            if resp and resp['msg']['data']:
+            # print(f' resp : { resp} ')
+            if resp and resp['msg']:
                 progress = resp['msg']['data']
                 return progress
             else:
-                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
+                logging.error(f'Failed to run {sys._getframe().f_code.co_name}, {resp}')
                 return None
 
         except Exception as e:
@@ -546,6 +563,7 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
+            print(f'NAV localization resp : { resp} ')
             if resp and resp['msg']['data']:
                 is_get_lost = resp['msg']['data'] # true-定位丢失,false-定位准确
                 return is_get_lost
@@ -572,6 +590,9 @@ class Connect():
         }
         try:
             resp = await self.send_data_ws(message)
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
             if resp and resp['msg']:
                 pos_x = resp['msg']['pose']['pose']['position']['x']
                 pos_y = resp['msg']['pose']['pose']['position']['y']
@@ -612,6 +633,9 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
             if resp and resp['value']['success']:
                 is_success = resp['value']['success'] 
                 return is_success
@@ -648,6 +672,9 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
             if resp and resp['value']['success'] :
                 is_success = resp['value']['success'] 
                 return is_success
@@ -720,6 +747,9 @@ class Connect():
 
         try:
             resp = await self.send_data_ws(message)
+            # loop = asyncio.get_event_loop()
+            # resp = loop.run_until_complete(self.send_data_ws(message))
+            # loop.close()
             if resp and resp['value']['success']:
                 is_success = resp['value']['success'] 
                 return is_success
@@ -758,13 +788,9 @@ class Connect():
             }
         }
         try:
-            resp = await self.send_data_ws_no_resp(message)
-            if resp:
-                return True
-            else:
-                logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
-                return None
+            await self.send_data_ws_no_resp(message)
         except Exception as e:
+            logging.error(f'Failed to run {sys._getframe().f_code.co_name}')
             return None
 
 
@@ -835,7 +861,8 @@ if __name__ == '__main__':
 
     app = Connect('192.168.1.102')
     # r = asyncio.run(app.get_nav_status())
-    app.ws_test()
+    app.get_nav_status()
+    
     # print(r)
 
     # asyncio.run(app.lighting())
