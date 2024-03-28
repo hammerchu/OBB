@@ -36,7 +36,6 @@ class Plan():
         retrun map_station_steps -> List of {}
         '''
 
-        # dest_map = self.get_map_from_station(dest_station) # find out what map the station is located on
         if dest_map:
             # get the map_steps(e.g. map1 => map3 => map5 -> (dest station) )
             map_steps = self.find_shortest_map_steps(current_map, dest_map)
@@ -51,7 +50,6 @@ class Plan():
                         map_station_steps.append({
                             "goal_map_name" : map_step,
                             "goal_station" : station_name,
-                            # "goal_position" : station_position
                             }
                         )
                     else:
@@ -60,7 +58,6 @@ class Plan():
                         map_station_steps.append({
                             "goal_map_name" : map_step,
                             "goal_station" : station_name,
-                            # "goal_position" : station_position
                             }
                         )
 
@@ -112,6 +109,19 @@ class Plan():
     def find_first_steps(self, start_map, dest_map, visited=[]):
         '''
         Recursivly finding a path from start to end, return the first solution
+
+        #           T3-----------<
+        #          /                \         
+        # T1 --<           T4 ------ T5
+        #          \      /
+        #           T2 --<
+                    
+                
+        # result map_steps
+        # from T1 to T4 : T1 -> T2 -> T4
+        # from T1 to T5 : T1 -> T2 -> T4 -> T5 or better, T1 -> T3 -> T5
+
+
         '''
         # Base case: if the starting map is the destination map, return a list with only the starting map
         if start_map == dest_map:

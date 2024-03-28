@@ -8,9 +8,15 @@
         },
         {
             "name" : "cross_road",
-            "color" : [100, 0, 255, 255],
+            "color" : [50, 0, 255, 255],
             "cmd" : "cross_road",
             "comment" : "Stop and wait for HUBS supervision and orient towards specific direction"
+        },
+        {
+            "name" : "take_over",
+            "color" : [100, 0, 100, 255],
+            "cmd" : "take_over",
+            "comment" : "Stop and wait for remote control from HUBS "
         },
         {
             "name" : "tunnel",

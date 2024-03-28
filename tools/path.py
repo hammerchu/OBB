@@ -92,7 +92,7 @@ def find_shortest_steps(start_map, dest_map, visited=[], shortest_path=None):
                     visited.append(start_map)
                     # Recursively call the find_steps function with the connected map as the new starting map
                     steps = find_shortest_steps(connected_map['map_name'], dest_map, visited, shortest_path)
-                    logging.debug('# ', steps)
+                    # logger.debug('# ', steps)
                     # If a non-empty path is found, check if it is shorter than the current shortest path
                     if steps:
                         # compare all the possible path and keep the one with less steps

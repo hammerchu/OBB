@@ -60,16 +60,19 @@ class RobotControlCenter:
         self.nav = None
         self.plan = None
         self.call = None
+        self.call_framerate = 60
+        self.call_save_to_disk = False
+
+        self.zone_cmd_in_run = []
+
+        self.take_over_mode = False # eval first
+        self.supervise_mode = False
 
         
-
-    def setup(self):
-        self.nav = asyncio.run(Navigate._init_())  # Nav instance
-        self.plan = Plan()  # Plan instance
-        self.start_call()
+        
 
     def start_call(self):
-        self.call = Call('M', 60, 0)  # Call and Streaming instance
+        self.call = Call('M', self.call_framerate, self.call_save_to_disk)  # Call and Streaming instance
         self.call.run('https://onbotbot.daily.co/_test')
 
     def quit_call(self):
@@ -78,13 +81,14 @@ class RobotControlCenter:
 
     def action_thread(self):
         '''
-        Running in a separate thread 
+        Running in a separate thread based on STATUS_CHECK_FREQ
         
         - Check if bot stuck
-        - Communicate with HUBS
-        - Check and run zone cmd
+        - Communicate with HUBS if needed
+        - Check control map color and run zone cmd
         '''
         is_asking_help = False
+        
         while True:
 
             # if self.nav and self.call and self.plan and self.nav.is_navigating:
@@ -119,8 +123,17 @@ class RobotControlCenter:
         for index, color in enumerate(color_list):
             if self.nav:
                 logger.info(f'~~~~~~~~ control map color: {self.nav.control_map_color} ')
-                if self.nav.control_map_color == color:
-                    eval(f"zone_cmd.{cmd_list[index]}")
+
+                # if BOT step on control color and the action is not currently running
+                if self.nav.control_map_color == color and cmd_list[index] not in self.zone_cmd_in_run:
+
+                    # Add the action to an active cmd list to avoid repetitive runs
+                    self.zone_cmd_in_run.append(cmd_list[index])
+                    r = eval(f"zone_cmd.{cmd_list[index]}(self, self.nav)")
+                    if r:
+                        # if the cmd is done, remove the action from the active cmd list
+                        self.zone_cmd_in_run.remove(cmd_list[index])
+
 
 
     def index(self):
@@ -140,12 +153,15 @@ class RobotControlCenter:
         '''
         Do all the bringup task here
         '''
+        self.nav = asyncio.run(Navigate._init_())  # Nav instance
+        self.plan = Plan()  # Plan instance
+        self.start_call()
+        
         Thread(target=self.action_thread).start()
 
 
-    def run(self, ui=False):
+    def start(self, ui=False):
         logger.info('\n\n ~~~~~~ BRAIN ~~~~~~\n\n')
-        self.setup()
         self.bringup()
 
         self.app.add_url_rule('/', 'index', self.index, methods=['GET'])
@@ -160,7 +176,7 @@ class RobotControlCenter:
 
 if __name__ == '__main__':
     robot_control_center = RobotControlCenter()
-    robot_control_center.run(ui=True)
+    robot_control_center.start(ui=True)
 
 
 # app = Flask(__name__, static_url_path="", static_folder="static")

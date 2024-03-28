@@ -1,6 +1,5 @@
 #-*-coding:utf-8-*-
 from typing import Tuple, List, Dict # for python 3.8
-import coloredlogs, logging, verboselogs
 import math
 from threading import Thread
 import time
@@ -16,6 +15,7 @@ from bot.tools import profile, utilities
 
 nest_asyncio.apply()
 
+import coloredlogs, logging, verboselogs
 logger = verboselogs.VerboseLogger(__name__)
 # logger.basicConfig(level=logger.DEBUG)
 coloredlogs.install(level='VERBOSE')

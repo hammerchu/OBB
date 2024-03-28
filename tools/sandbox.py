@@ -1,9 +1,12 @@
-from utilities import get_control_map_color, get_scaled_control_map_color
+import zone_cmd
+from bot.classes import call
+from bot.tools import joystick
 
-# resp = get_control_map_color('T001-02', (0,0))
-# if resp:
-#     print(resp)
 
-resp = get_scaled_control_map_color('T001-02', (0,0))
-if resp:
-    print(resp)
+if __name__ == '__main__':
+    print('running sandbox')
+
+    c = call.Call('m', 30, False)
+    print(c.video_quality)
+    eval('zone_cmd.supervise')(c)
+    print(c.video_quality)

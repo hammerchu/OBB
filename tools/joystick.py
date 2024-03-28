@@ -109,26 +109,6 @@ class DS4(object):
         if self.connect:
             self.connect_to_bot()
         listen_thread = Thread(target=self.listen_wraper).start()
-
-    # @classmethod
-    # async def _init_(cls):
-    #     self = cls()
-
-    #     print('\nrunning init\n')
-    #     pygame.init()
-    #     pygame.joystick.init()
-    #     self.controller = pygame.joystick.Joystick(0)
-    #     self.controller.init()
-
-    #     self.connect = False
-
-    #     self.running = True
-    #     self.debug = True
-
-    #     if self.connect:
-    #         self.connect_to_bot()
-    #     listen_thread = Thread(target=self.listen_wraper).start()
-    #     return self
     
 
     def connect_to_bot(self):
@@ -139,73 +119,69 @@ class DS4(object):
 
     async def listen(self):
         """Listen for events to happen"""
-        
-        if not self.axis_data:
-            self.axis_data = {}
+        if self.controller:
+            if not self.axis_data:
+                self.axis_data = {}
 
-        if not self.button_data:
-            self.button_data = {}
-            for i in range(self.controller.get_numbuttons()):
-                self.button_data[i] = False
+            if not self.button_data:
+                self.button_data = {}
+                for i in range(self.controller.get_numbuttons()):
+                    self.button_data[i] = False
 
-        if not self.hat_data:
-            self.hat_data = {}
-            for i in range(self.controller.get_numhats()):
-                self.hat_data[i] = (0, 0)
+            if not self.hat_data:
+                self.hat_data = {}
+                for i in range(self.controller.get_numhats()):
+                    self.hat_data[i] = (0, 0)
 
         fps = -1
         while self.running:
             then = time.time()
-            for event in pygame.event.get():
-                if event.type == pygame.JOYAXISMOTION:
-                    # self.axis_data[1] = 0
-                    # self.axis_data[2] = 0
-                    self.axis_data[event.axis] = round(event.value,2)
-                elif event.type == pygame.JOYBUTTONDOWN:
-                    self.button_data[event.button] = True
-                elif event.type == pygame.JOYBUTTONUP:
-                    self.button_data[event.button] = False
-                elif event.type == pygame.JOYHATMOTION:
-                    self.hat_data[event.hat] = event.value
+            if self.axis_data is not None and self.button_data is not None and self.hat_data is not None:
+                for event in pygame.event.get():
+                    if event.type == pygame.JOYAXISMOTION:
+                        # self.axis_data[1] = 0
+                        # self.axis_data[2] = 0
+                        self.axis_data[event.axis] = round(event.value,2)
+                    elif event.type == pygame.JOYBUTTONDOWN:
+                        self.button_data[event.button] = True
+                    elif event.type == pygame.JOYBUTTONUP:
+                        self.button_data[event.button] = False
+                    elif event.type == pygame.JOYHATMOTION:
+                        self.hat_data[event.hat] = event.value
 
-                # Insert your code on what you would like to happen for each event here!
-                # In the current setup, I have the state simply printing out to the screen.
+            
+                    if self.debug:
+                        os.system('clear')
 
-                
-                if self.debug:
-                    os.system('clear')
+                        pprint.pprint(f'B {self.button_data}')
 
-                    
+                        for idx, k in enumerate(self.axis_data.values()):
+                            pprint.pprint(f'{idx} {k}')
 
-                    pprint.pprint(f'B {self.button_data}')
+                        pprint.pprint(f'A {self.axis_data}')
+                        # pprint.pprint(self.hat_data)
+                        pprint.pprint(f'H {self.hat_data}')
+                        # await self.cmd_vel()
+                        if self.connect:
+                            await self.cmd_vel()
+                        try:
+                            if self.button_data and self.button_data[10] == True:
+                                self.speed_factor = 0.5
+                            elif self.button_data and self.button_data[9] == True:
+                                self.speed_factor = 2
+                            else:
+                                self.speed_factor = 1
+                        except:
+                            pass
+                        pprint.pprint(f'S {(self.speed_factor)}')
 
-                    for idx, k in enumerate(self.axis_data.values()):
-                        pprint.pprint(f'{idx} {k}')
+                        pprint.pprint(f'vel {(self.linear_x, self.angular_x)}')
 
-                    pprint.pprint(f'A {self.axis_data}')
-                    # pprint.pprint(self.hat_data)
-                    pprint.pprint(f'H {self.hat_data}')
-                    # await self.cmd_vel()
-                    if self.connect:
-                        await self.cmd_vel()
-                    try:
-                        if self.button_data and self.button_data[10] == True:
-                            self.speed_factor = 0.5
-                        elif self.button_data and self.button_data[9] == True:
-                            self.speed_factor = 2
-                        else:
-                            self.speed_factor = 1
-                    except:
-                        pass
-                    pprint.pprint(f'S {(self.speed_factor)}')
-
-                    pprint.pprint(f'vel {(self.linear_x, self.angular_x)}')
-
-                    pprint.pprint(fps)
+                        pprint.pprint(fps)
 
 
-                if self.button_data[4] == True:
-                    self.running = False
+                    if self.button_data[4] == True:
+                        self.running = False
 
 
             now = time.time()
@@ -248,14 +224,10 @@ class DS4(object):
             self.angular_x = 99
             print('error', e)
 
-# async def ds4_main():
-#     controller = await DS4._init_()
-#     return 
 
 if __name__ == "__main__":
     ps4 = DS4()
     ps4.init()
     
-    # asyncio.run(ds4_main())
 
 

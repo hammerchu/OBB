@@ -26,7 +26,7 @@ class Call(EventHandler): # require EventHandler for callbacks
     Stream video to HUBS via daily.co API
     Communicate with HUBS via messages and pass instruction to BRAIN
     '''
-    def __init__(self, size, framerate, is_save_to_disk):
+    def __init__(self, size, framerate, is_save_to_disk:bool):
         Daily.init()
 
         self.last_fps_update = time.time()  # Variable to store the last time FPS was updated
@@ -369,7 +369,7 @@ def main():
     # parser.add_argument("-m", "--meeting", required = True, help = "Meeting URL")
     parser.add_argument("-si", "--size", required = True, help = "Size of video, L, M or S")
     parser.add_argument("-fr", "--framerate", type=int, required = True, help = "Framerate, recommend 30")
-    parser.add_argument("-sv", "--save", type=int, required = True, help = "save video to disk")
+    parser.add_argument("-sv", "--save", type=bool, required = True, help = "save video to disk")
     args = parser.parse_args()
 
     # Daily.init()
